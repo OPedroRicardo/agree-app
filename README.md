@@ -106,13 +106,3 @@ src/
     server-auth.ts               # servidor apenas: ler/gravar/apagar o cookie httpOnly
     types.ts                        # tipos compartilhados com o shape da API
 ```
-
-## O que NÃO foi verificado manualmente
-
-Este projeto foi validado via `tsc`, `eslint`, `next build` e testes de integração via linha de comando (login → WS → histórico REST, ver notas do backend). **O fluxo completo pela interface no navegador não foi testado manualmente** — antes de considerar pronto, confira:
-
-- Login real pela tela (credenciais corretas e incorretas).
-- Envio e recebimento de mensagens em tempo real entre duas abas/usuários diferentes.
-- Criar servidor pelo modal e ver ele aparecer na barra lateral.
-- Comportamento ao expirar a sessão (token vencido/adulterado, tentar enviar uma mensagem ou navegar).
-- Responsividade / layout em telas menores (o protótipo original era desktop-only).
