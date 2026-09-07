@@ -1,5 +1,3 @@
-'use client';
-
 import { useState } from 'react';
 import { MessageCircle, Plus } from 'lucide-react';
 import type { AgreeServer } from '@/lib/types';
@@ -85,7 +83,6 @@ function ServerIcon({
         }`}
       >
         {showImage ? (
-          // eslint-disable-next-line @next/next/no-img-element -- arbitrary user-provided URLs, not known to next/image at build time
           <img
             src={server.logoImg}
             alt={server.name}

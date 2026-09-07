@@ -1,4 +1,7 @@
-import type { AgreeServer, ChatMessage, LoggedUser } from './types';
+import type { AgreeChannel, AgreeServer, ChatMessage, LoggedUser } from './types';
+
+/** Base URL of the Agree NestJS backend. */
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:3000';
 
 /** Thrown by {@link request} for any non-2xx response; `status` is the HTTP status code. */
 export class ApiError extends Error {
@@ -11,13 +14,14 @@ export class ApiError extends Error {
 }
 
 /**
- * Shared `fetch` wrapper for this app's own `/api/*` Route Handlers (which
- * proxy to the Agree backend and attach the JWT from the httpOnly cookie
- * server-side — the browser never handles the token directly).
+ * Shared `fetch` wrapper for the Agree backend. `credentials: 'include'`
+ * makes the browser send the httpOnly `agree_token` cookie set by
+ * `POST /auth/login` — the app never handles the JWT directly.
  */
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(path, {
+  const res = await fetch(`${BACKEND_URL}${path}`, {
     ...options,
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...options.headers },
   });
 
@@ -33,40 +37,56 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-/** `POST /api/auth/login` → backend `POST /auth/login`. `login` is a username or email. */
+/** `POST /auth/login`. `login` is a username or email. */
 export function login(login: string, password: string) {
-  return request<{ ok: true }>('/api/auth/login', {
+  return request<{ ok: true }>('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ login, password }),
   });
 }
 
-/** `GET /api/auth/me` → backend `GET /auth/profile`. */
+/** `GET /auth/profile`. */
 export function getProfile() {
-  return request<LoggedUser>('/api/auth/me');
+  return request<LoggedUser>('/auth/profile');
 }
 
-/** `POST /api/auth/logout` — clears the session cookie. */
+/** `POST /auth/logout` — clears the session cookie. */
 export function logout() {
-  return request<{ ok: true }>('/api/auth/logout', { method: 'POST' });
+  return request<{ ok: true }>('/auth/logout', { method: 'POST' });
 }
 
-/** `GET /api/servers` → backend `GET /server`. */
+/** `GET /server`. */
 export function listServers() {
-  return request<AgreeServer[]>('/api/servers');
+  return request<AgreeServer[]>('/server');
 }
 
-/** `POST /api/servers` → backend `POST /server`. */
+/** `POST /server`. */
 export function createServer(
   data: Pick<AgreeServer, 'name' | 'description' | 'logoImg' | 'bannerImage'>,
 ) {
-  return request<AgreeServer>('/api/servers', {
+  return request<AgreeServer>('/server', {
     method: 'POST',
     body: JSON.stringify(data),
   });
 }
 
-/** `GET /api/chat/:channelId` → backend `GET /chat/:channelId`. `channelId` is an `AgreeServer._id`. */
+/** `GET /server/:serverId/channel`. */
+export function listChannels(serverId: string) {
+  return request<AgreeChannel[]>(`/server/${serverId}/channel`);
+}
+
+/** `POST /server/:serverId/channel`. */
+export function createChannel(
+  serverId: string,
+  data: Pick<AgreeChannel, 'name' | 'type'>,
+) {
+  return request<AgreeChannel>(`/server/${serverId}/channel`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+/** `GET /chat/:channelId`. `channelId` is an `AgreeChannel._id`. */
 export function listChannelMessages(channelId: string, limit = 50) {
-  return request<ChatMessage[]>(`/api/chat/${channelId}?limit=${limit}`);
+  return request<ChatMessage[]>(`/chat/${channelId}?limit=${limit}`);
 }

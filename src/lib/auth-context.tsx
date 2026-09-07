@@ -1,5 +1,3 @@
-'use client';
-
 import {
   createContext,
   useCallback,
@@ -13,9 +11,9 @@ import { getProfile, login as loginRequest, logout as logoutRequest } from './ap
 import type { LoggedUser } from './types';
 
 /**
- * Session state. The JWT itself lives only in an httpOnly cookie (set by
- * `/api/auth/login`, read by `/api/*` route handlers and the backend's WS
- * gateway) — it never reaches this state or `localStorage`.
+ * Session state. The JWT itself lives only in an httpOnly cookie (set by the
+ * backend's `POST /auth/login`, read by its HTTP guard and WS gateway) — it
+ * never reaches this state or `localStorage`.
  */
 type AuthState =
   | { status: 'loading' }

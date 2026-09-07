@@ -1,5 +1,3 @@
-'use client';
-
 import { useState } from 'react';
 
 const AVATAR_COLORS = [
@@ -43,7 +41,6 @@ export function Avatar({
 
   if (showImage) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element -- arbitrary user-provided URLs, not known to next/image at build time
       <img
         src={avatarUrl}
         alt={seed}

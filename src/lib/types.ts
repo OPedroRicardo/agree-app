@@ -4,13 +4,20 @@ export type LoggedUser = {
   username: string;
 };
 
-/** A Mongo `Server` document. No channel sub-resource — `_id` doubles as the chat `channelId`. */
+/** A Mongo `Server` document. Channels are a sub-resource — see {@link AgreeChannel}. */
 export type AgreeServer = {
   _id: string;
   name: string;
   description: string;
   logoImg: string;
   bannerImage: string;
+};
+
+/** A channel embedded in a `Server` document. `_id` is the chat `channelId` used by the WS gateway and `/chat/:channelId`. */
+export type AgreeChannel = {
+  _id: string;
+  name: string;
+  type: 'text' | 'voice';
 };
 
 /** A Postgres `messages` row. */

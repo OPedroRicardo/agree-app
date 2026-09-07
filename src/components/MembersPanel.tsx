@@ -1,5 +1,3 @@
-'use client';
-
 import { Users } from 'lucide-react';
 
 /** Right-side drawer, animated by `open` (always mounted so the close transition plays). Placeholder — no backend presence data. */
