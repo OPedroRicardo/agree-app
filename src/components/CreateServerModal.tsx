@@ -1,5 +1,3 @@
-'use client';
-
 import { FormEvent, TransitionEvent, useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 
@@ -63,9 +61,13 @@ export function CreateServerModal({
       <form
         onClick={(e) => e.stopPropagation()}
         onSubmit={handleSubmit}
-        className={`flex w-full max-w-[420px] flex-col gap-3 rounded-lg bg-surface p-5 shadow-xl transition-all duration-200 ease-out ${
+        className={`flex w-full max-w-[420px] flex-col gap-3 rounded-lg p-5 shadow-xl transition-all duration-200 ease-out ${
           visible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
         }`}
+        style={{
+          background: 'color-mix(in srgb, var(--agree-surface) 70%, transparent)',
+          backdropFilter: 'blur(20px) saturate(160%)',
+        }}
       >
         <div className="flex items-center justify-between">
           <div className="text-[18px] font-semibold">Novo servidor</div>

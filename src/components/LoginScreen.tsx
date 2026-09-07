@@ -1,5 +1,3 @@
-'use client';
-
 import { FormEvent, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { ApiError } from '@/lib/api';
@@ -105,23 +103,6 @@ export function LoginScreen({
         >
           {loading ? 'Entrando…' : 'Entrar'}
         </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            setEmailValue('admin@example.com');
-            setPassword('admin123');
-            setError(null);
-          }}
-          className="text-[12px] text-accent underline decoration-1 underline-offset-4"
-        >
-          Usar credenciais de teste (seed)
-        </button>
-
-        <div className="border-t border-divider pt-3 text-[11px] text-neutral-500">
-          Sessão real — o token JWT deste backend expira em 7 dias e não há
-          refresh automático.
-        </div>
       </form>
     </div>
   );
