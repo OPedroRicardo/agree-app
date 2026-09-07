@@ -1,8 +1,6 @@
-'use client';
-
 import { useEffect, useRef, useState } from 'react';
 import { Send, Users } from 'lucide-react';
-import type { AgreeServer, ChatMessage } from '@/lib/types';
+import type { AgreeChannel, AgreeServer, ChatMessage } from '@/lib/types';
 import { Avatar, initialsOf } from './Avatar';
 
 /** Formats an ISO timestamp as `HH:MM` (pt-BR). */
@@ -16,6 +14,8 @@ function formatTime(iso: string) {
 /** Message list, composer and header for the active channel. Purely presentational. */
 export function ChatArea({
   server,
+  channel,
+  loadingChannels,
   messages,
   loading,
   connected,
@@ -24,6 +24,9 @@ export function ChatArea({
   onSend,
 }: {
   server: AgreeServer | null;
+  channel: AgreeChannel | null;
+  /** True while the active server's channel list is still loading — avoids flashing "no channels" before it resolves. */
+  loadingChannels: boolean;
   messages: ChatMessage[];
   loading: boolean;
   connected: boolean;
@@ -40,7 +43,7 @@ export function ChatArea({
 
   function handleSend() {
     const text = composer.trim();
-    if (!text || !server) return;
+    if (!text || !channel) return;
     onSend(text);
     setComposer('');
   }
@@ -58,7 +61,11 @@ export function ChatArea({
         }}
       >
         <div className="text-[15px] font-semibold">
-          {server ? `# geral · ${server.name}` : 'Nenhum servidor selecionado'}
+          {channel && server
+            ? `# ${channel.name} · ${server.name}`
+            : server
+              ? 'Crie um canal para começar'
+              : 'Nenhum servidor selecionado'}
         </div>
         <div
           className={`h-1.5 w-1.5 rounded-full transition-colors duration-300 ${connected ? 'bg-online' : 'bg-neutral-600'}`}
@@ -83,12 +90,20 @@ export function ChatArea({
             Crie ou selecione um servidor para conversar.
           </div>
         )}
-        {server && loading && (
+        {server && loadingChannels && (
+          <div className="m-auto text-[13px] text-neutral-500">Carregando canais…</div>
+        )}
+        {server && !loadingChannels && !channel && (
+          <div className="m-auto text-[13px] text-neutral-500">
+            Este servidor ainda não tem canais. Crie um pra começar.
+          </div>
+        )}
+        {channel && loading && (
           <div className="m-auto text-[13px] text-neutral-500">Carregando histórico…</div>
         )}
-        {server && !loading && messages.length === 0 && (
+        {channel && !loading && messages.length === 0 && (
           <div className="m-auto text-[13px] text-neutral-500">
-            Nenhuma mensagem ainda em #geral. Diga oi!
+            Nenhuma mensagem ainda em #{channel.name}. Diga oi!
           </div>
         )}
         {messages.map((msg) => (
@@ -118,7 +133,7 @@ export function ChatArea({
       </div>
 
       <div
-        className="m-2 flex h-15 flex-none items-center gap-2.5 rounded-lg"
+        className="flex h-18 flex-none items-center gap-2.5"
         style={{
           background: 'var(--agree-bg)',
           backdropFilter: 'blur(16px)',
@@ -127,18 +142,18 @@ export function ChatArea({
         <input
           type="text"
           value={composer}
-          disabled={!server}
+          disabled={!channel}
           onChange={(e) => setComposer(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') handleSend();
           }}
-          placeholder={server ? 'Enviar mensagem em #geral' : 'Selecione um servidor'}
+          placeholder={channel ? `Enviar mensagem em #${channel.name}` : 'Selecione um canal'}
           className="h-full flex-1 rounded-lg border-none bg-transparent pl-3 text-[14px] outline-none disabled:opacity-50"
         />
         <button
           type="button"
           onClick={handleSend}
-          disabled={!server || !composer.trim()}
+          disabled={!channel || !composer.trim()}
           title="Enviar"
           className="mr-3 flex h-10 w-10 flex-none items-center justify-center rounded-full border border-accent text-accent transition-all duration-150 hover:scale-105 hover:bg-accent/10 hover:shadow-[0_0_0_4px_rgba(145,132,217,0.15)] active:scale-90 disabled:opacity-40 disabled:hover:scale-100 disabled:hover:shadow-none"
         >
