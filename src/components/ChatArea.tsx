@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Send, Users } from 'lucide-react';
+import { MessageCirclePlus, Send, Sparkles, Users } from 'lucide-react';
 import type { AgreeChannel, AgreeServer, ChatMessage } from '@/lib/types';
 import { Avatar, initialsOf } from './Avatar';
 
@@ -144,8 +144,18 @@ export function ChatArea({
           </div>
         )}
         {dmMode && !channel && (
-          <div className="m-auto text-[13px] text-neutral-500">
-            Selecione uma conversa ou inicie uma nova.
+          <div className="m-auto flex flex-col items-center gap-3 text-center" style={{ animation: 'agree-fade-up 0.3s ease both' }}>
+            <div
+              className="flex h-14 w-14 items-center justify-center rounded-full text-accent"
+              style={{
+                background: 'color-mix(in srgb, var(--agree-accent) 15%, transparent)',
+                animation: 'agree-float 3s ease-in-out infinite',
+              }}
+            >
+              <MessageCirclePlus size={24} />
+            </div>
+            <div className="text-[14px] font-medium text-text">Suas conversas estão ali do lado</div>
+            <div className="text-[12px] text-neutral-500">Escolha alguém na lista ou comece uma DM nova.</div>
           </div>
         )}
         {channel && loading && (
@@ -162,10 +172,20 @@ export function ChatArea({
           </button>
         )}
         {channel && !loading && messages.length === 0 && (
-          <div className="m-auto text-[13px] text-neutral-500">
-            {dmMode
-              ? `Nenhuma mensagem ainda com ${channel.name}. Diga oi!`
-              : `Nenhuma mensagem ainda em #${channel.name}. Diga oi!`}
+          <div className="m-auto flex flex-col items-center gap-3 text-center" style={{ animation: 'agree-fade-up 0.3s ease both' }}>
+            <div
+              className="flex h-14 w-14 items-center justify-center rounded-full text-accent"
+              style={{
+                background: 'color-mix(in srgb, var(--agree-accent) 15%, transparent)',
+                animation: 'agree-float 3s ease-in-out infinite',
+              }}
+            >
+              <Sparkles size={24} />
+            </div>
+            <div className="text-[14px] font-medium text-text">
+              {dmMode ? `Ainda não rolou papo com ${channel.name}` : `#${channel.name} está esperando a primeira mensagem`}
+            </div>
+            <div className="text-[12px] text-neutral-500">Manda um oi pra quebrar o gelo.</div>
           </div>
         )}
         {messages.map((msg) => (
