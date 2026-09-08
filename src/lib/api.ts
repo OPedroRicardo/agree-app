@@ -114,6 +114,26 @@ export function listChannelMessages(channelId: string, limit = 50, before?: stri
   return request<ChatMessage[]>(`/chat/${channelId}?${query}`);
 }
 
+/** `GET /server/:serverId/members`. Public fields only, same shape as `GET /users`. */
+export function listServerMembers(serverId: string) {
+  return request<AgreeUser[]>(`/server/${serverId}/members`);
+}
+
+/** `POST /server/:serverId/members`. Owner-only — the backend 403s otherwise. */
+export function addServerMember(serverId: string, userId: string) {
+  return request<void>(`/server/${serverId}/members`, {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+  });
+}
+
+/** `DELETE /server/:serverId/members/:userId`. Owner-only, and the owner can't remove themselves — the backend 400s that. */
+export function removeServerMember(serverId: string, userId: string) {
+  return request<void>(`/server/${serverId}/members/${userId}`, {
+    method: 'DELETE',
+  });
+}
+
 /** `GET /users`. Everyone except the caller — the picker for starting a DM. */
 export function listUsers() {
   return request<AgreeUser[]>('/users');

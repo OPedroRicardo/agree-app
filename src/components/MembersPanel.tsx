@@ -1,7 +1,99 @@
-import { Users } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { UserMinus, UserPlus, Users } from 'lucide-react';
+import {
+  addServerMember,
+  ApiError,
+  listServerMembers,
+  listUsers,
+  removeServerMember,
+} from '@/lib/api';
+import type { AgreeServer, AgreeUser } from '@/lib/types';
+import { Avatar } from './Avatar';
+import { AddMemberModal } from './AddMemberModal';
 
-/** Right-side drawer, animated by `open` (always mounted so the close transition plays). Placeholder — no backend presence data. */
-export function MembersPanel({ open }: { open: boolean }) {
+/**
+ * Right-side drawer — member roster of `server`, always mounted (so the
+ * close transition plays) but only fetches while `open`. The owner
+ * (`server.ownerId === selfId`) additionally gets a button to add a member
+ * and a remove button per row — everyone else just sees the list.
+ */
+export function MembersPanel({
+  open,
+  server,
+  selfId,
+}: {
+  open: boolean;
+  server: AgreeServer | null;
+  selfId: string | null;
+}) {
+  const [members, setMembers] = useState<AgreeUser[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [allUsers, setAllUsers] = useState<AgreeUser[]>([]);
+  const [loadingAllUsers, setLoadingAllUsers] = useState(false);
+  const [addUsersError, setAddUsersError] = useState<string | null>(null);
+
+  const isOwner = Boolean(server?.ownerId && server.ownerId === selfId);
+
+  useEffect(() => {
+    if (!open || !server) return;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    listServerMembers(server._id)
+      .then((list) => {
+        if (!cancelled) setMembers(list);
+      })
+      .catch(() => {
+        if (!cancelled) setError('Não foi possível carregar os membros.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, server]);
+
+  function handleOpenAddModal() {
+    setShowAddModal(true);
+    setAddUsersError(null);
+    setLoadingAllUsers(true);
+    listUsers()
+      .then(setAllUsers)
+      .catch(() => setAddUsersError('Não foi possível carregar a lista de usuários.'))
+      .finally(() => setLoadingAllUsers(false));
+  }
+
+  function handleAddUser(user: AgreeUser) {
+    if (!server) return;
+    addServerMember(server._id, user.id)
+      .then(() => setMembers((prev) => (prev.some((m) => m.id === user.id) ? prev : [...prev, user])))
+      .catch((err) => {
+        setError(
+          err instanceof ApiError ? err.message : 'Não foi possível adicionar o membro.',
+        );
+      });
+  }
+
+  function handleRemoveUser(userId: string) {
+    if (!server) return;
+    setRemovingId(userId);
+    removeServerMember(server._id, userId)
+      .then(() => setMembers((prev) => prev.filter((m) => m.id !== userId)))
+      .catch((err) => {
+        setError(
+          err instanceof ApiError ? err.message : 'Não foi possível remover o membro.',
+        );
+      })
+      .finally(() => setRemovingId(null));
+  }
+
+  const membersNotInServer = allUsers.filter((u) => !members.some((m) => m.id === u.id));
+
   return (
     <div
       aria-hidden={!open}
@@ -13,13 +105,74 @@ export function MembersPanel({ open }: { open: boolean }) {
         backdropFilter: 'blur(var(--agree-blur, 22px)) saturate(150%)',
       }}
     >
-      <div className="flex w-55 flex-none flex-col items-center gap-3 overflow-y-auto p-4 text-center">
-        <Users size={22} className="mt-6 text-neutral-500" />
-        <div className="text-[11px] leading-relaxed text-neutral-500">
-          Lista de membros e status online/offline em breve — o backend do
-          Agree não expõe presença nem participantes por servidor hoje.
+      <div className="flex w-55 flex-none flex-col gap-2 overflow-y-auto p-3">
+        <div className="flex items-center justify-between px-1 pt-1">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-neutral-500">
+            <Users size={13} />
+            MEMBROS — {members.length}
+          </div>
+          {isOwner && (
+            <button
+              type="button"
+              title="Adicionar membro"
+              onClick={handleOpenAddModal}
+              className="text-neutral-500 transition-all duration-150 hover:scale-110 hover:text-accent active:scale-90"
+            >
+              <UserPlus size={14} />
+            </button>
+          )}
         </div>
+
+        {!server && (
+          <div className="mt-4 text-center text-[11px] text-neutral-500">
+            Selecione um servidor.
+          </div>
+        )}
+        {server && loading && (
+          <div className="mt-4 text-center text-[11px] text-neutral-500">Carregando…</div>
+        )}
+        {server && error && (
+          <div className="px-1 text-[11px] text-danger">{error}</div>
+        )}
+
+        {server &&
+          !loading &&
+          members.map((member) => (
+            <div
+              key={member.id}
+              className="group flex items-center gap-2 rounded-md px-1 py-1 transition-colors duration-150 hover:bg-bg/40"
+            >
+              <Avatar seed={member.username} avatarUrl={member.profileImageUrl ?? undefined} size={26} />
+              <span className="min-w-0 flex-1 truncate text-[13px] text-neutral-300">
+                {member.username}
+                {member.id === server.ownerId && (
+                  <span className="ml-1 text-[10px] text-neutral-500">dono</span>
+                )}
+              </span>
+              {isOwner && member.id !== server.ownerId && (
+                <button
+                  type="button"
+                  title="Remover do servidor"
+                  disabled={removingId === member.id}
+                  onClick={() => handleRemoveUser(member.id)}
+                  className="flex-none text-neutral-500 opacity-0 transition-all duration-150 hover:text-danger group-hover:opacity-100 disabled:opacity-50"
+                >
+                  <UserMinus size={13} />
+                </button>
+              )}
+            </div>
+          ))}
       </div>
+
+      {showAddModal && (
+        <AddMemberModal
+          users={membersNotInServer}
+          loading={loadingAllUsers}
+          error={addUsersError}
+          onClose={() => setShowAddModal(false)}
+          onSelectUser={handleAddUser}
+        />
+      )}
     </div>
   );
 }

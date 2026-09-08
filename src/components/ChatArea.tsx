@@ -120,7 +120,7 @@ export function ChatArea({
           <button
             type="button"
             onClick={onToggleMembers}
-            title="Membros (em breve)"
+            title="Membros"
             className="text-[17px] transition-all duration-200 hover:scale-110 active:scale-90"
             style={{ color: showMembers ? 'var(--agree-accent)' : 'var(--agree-neutral-500)' }}
           >
