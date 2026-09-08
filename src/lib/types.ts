@@ -32,3 +32,26 @@ export type ChatMessage = {
   /** ISO 8601 timestamp. */
   createdAt: string;
 };
+
+/** A Mongo `User`, as exposed by `GET /users` — public fields only. */
+export type AgreeUser = {
+  id: string;
+  username: string;
+  profileImageUrl: string | null;
+};
+
+/** One participant of a `AgreeConversation`, hydrated from Mongo by the backend. */
+export type ConversationParticipant = {
+  id: string;
+  username: string | null;
+  profileImageUrl: string | null;
+};
+
+/** A Postgres `conversations` row of type `dm`/`group`, as returned by `GET /chat/conversations`. */
+export type AgreeConversation = {
+  id: string;
+  type: 'dm' | 'group';
+  participants: ConversationParticipant[];
+  createdAt: string | null;
+  lastMessageAt: string | null;
+};

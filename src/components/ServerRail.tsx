@@ -7,12 +7,17 @@ import { HoverPlayImage } from './HoverPlayImage';
 export function ServerRail({
   servers,
   activeServerId,
+  dmViewActive,
   onSelectServer,
+  onOpenDms,
   onOpenCreate,
 }: {
   servers: AgreeServer[];
   activeServerId: string | null;
+  /** True while the "Mensagens diretas" view is the one showing, instead of a server's channels. */
+  dmViewActive: boolean;
   onSelectServer: (id: string) => void;
+  onOpenDms: () => void;
   onOpenCreate: () => void;
 }) {
   return (
@@ -22,32 +27,38 @@ export function ServerRail({
     >
       <button
         type="button"
-        title="Mensagens diretas (em breve — sem endpoint no backend)"
-        disabled
-        className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-transparent bg-surface/60 text-[19px] text-neutral-500 opacity-60"
+        title="Mensagens diretas"
+        onClick={onOpenDms}
+        className={`flex h-10 w-10 items-center justify-center rounded-full border-2 text-[19px] transition-all duration-200 ease-out hover:scale-105 ${
+          dmViewActive
+            ? 'border-accent bg-accent/15 text-accent'
+            : 'border-transparent bg-surface/60 text-neutral-400 hover:text-text'
+        }`}
       >
         <MessageCircle size={18} />
       </button>
 
       <div className="h-px w-8 bg-divider" />
 
-      {servers.map((server) => (
-        <ServerIcon
-          key={server._id}
-          server={server}
-          isActive={activeServerId === server._id}
-          onSelect={() => onSelectServer(server._id)}
-        />
-      ))}
+      <div className="flex min-h-0 w-full flex-1 flex-col items-center gap-2.5 overflow-x-hidden overflow-y-auto">
+        {servers.map((server) => (
+          <ServerIcon
+            key={server._id}
+            server={server}
+            isActive={!dmViewActive && activeServerId === server._id}
+            onSelect={() => onSelectServer(server._id)}
+          />
+        ))}
 
-      <button
-        type="button"
-        title="Adicionar servidor"
-        onClick={onOpenCreate}
-        className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-dashed border-divider text-neutral-500 transition-all duration-200 ease-out hover:scale-105 hover:rotate-90 hover:rounded-lg hover:border-accent hover:border-solid hover:text-accent active:scale-95"
-      >
-        <Plus size={18} />
-      </button>
+        <button
+          type="button"
+          title="Adicionar servidor"
+          onClick={onOpenCreate}
+          className="flex h-10 w-10 flex-none items-center justify-center rounded-full border-2 border-dashed border-divider text-neutral-500 transition-all duration-200 ease-out hover:scale-105 hover:rotate-90 hover:rounded-lg hover:border-accent hover:border-solid hover:text-accent active:scale-95"
+        >
+          <Plus size={18} />
+        </button>
+      </div>
     </div>
   );
 }

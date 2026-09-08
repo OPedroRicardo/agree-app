@@ -1,4 +1,11 @@
-import type { AgreeChannel, AgreeServer, ChatMessage, LoggedUser } from './types';
+import type {
+  AgreeChannel,
+  AgreeConversation,
+  AgreeServer,
+  AgreeUser,
+  ChatMessage,
+  LoggedUser,
+} from './types';
 
 /** Base URL of the Agree NestJS backend. */
 const BACKEND_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
@@ -101,7 +108,24 @@ export function createChannel(
   });
 }
 
-/** `GET /chat/:channelId`. `channelId` is an `AgreeChannel._id`. */
-export function listChannelMessages(channelId: string, limit = 50) {
-  return request<ChatMessage[]>(`/chat/${channelId}?limit=${limit}`);
+/** `GET /chat/:channelId`. `channelId` is an `AgreeChannel._id`. `before` (ISO 8601) pages further into the history. */
+export function listChannelMessages(channelId: string, limit = 50, before?: string) {
+  const query = before ? `limit=${limit}&before=${encodeURIComponent(before)}` : `limit=${limit}`;
+  return request<ChatMessage[]>(`/chat/${channelId}?${query}`);
+}
+
+/** `GET /users`. Everyone except the caller — the picker for starting a DM. */
+export function listUsers() {
+  return request<AgreeUser[]>('/users');
+}
+
+/** `GET /chat/conversations`. The caller's dm/group conversations, newest first. */
+export function listConversations() {
+  return request<AgreeConversation[]>('/chat/conversations');
+}
+
+/** `GET /chat/conversations/:conversationId`. `before` (ISO 8601) pages further into the history. */
+export function listConversationMessages(conversationId: string, limit = 50, before?: string) {
+  const query = before ? `limit=${limit}&before=${encodeURIComponent(before)}` : `limit=${limit}`;
+  return request<ChatMessage[]>(`/chat/conversations/${conversationId}?${query}`);
 }
