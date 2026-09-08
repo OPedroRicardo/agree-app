@@ -1,7 +1,7 @@
 import type { AgreeChannel, AgreeServer, ChatMessage, LoggedUser } from './types';
 
 /** Base URL of the Agree NestJS backend. */
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:3000';
+const BACKEND_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
 /** Thrown by {@link request} for any non-2xx response; `status` is the HTTP status code. */
 export class ApiError extends Error {
