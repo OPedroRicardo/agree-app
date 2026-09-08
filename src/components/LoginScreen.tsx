@@ -6,14 +6,9 @@ import { ApiError } from '@/lib/api';
  * Login form rendered by the `/login` route. Calls `signIn` from
  * {@link useAuth} and distinguishes a bad-credentials `ApiError` from a
  * network/connectivity failure so the message tells the user which one
- * happened.
+ * happened. `notice` (e.g. "session expired") renders above the form.
  */
-export function LoginScreen({
-  /** Message to show above the form (e.g. "session expired"); `null`/`undefined` renders nothing. */
-  notice,
-}: {
-  notice?: string | null;
-}) {
+export function LoginScreen({ notice }: { notice?: string | null }) {
   const { signIn } = useAuth();
   const [emailValue, setEmailValue] = useState('');
   const [password, setPassword] = useState('');
@@ -47,7 +42,7 @@ export function LoginScreen({
     >
       <form
         onSubmit={handleSubmit}
-        className="flex w-[380px] flex-col gap-4.5 rounded-2xl p-8"
+        className="flex w-95 flex-col gap-4.5 rounded-2xl p-8"
         style={{
           background: 'color-mix(in srgb, var(--agree-surface) 55%, transparent)',
           backdropFilter: 'blur(24px) saturate(160%)',
@@ -62,7 +57,7 @@ export function LoginScreen({
         <div>
           <div className="mb-1 text-[22px] font-semibold">Entrar</div>
           <div className="text-[13px] text-neutral-400">
-            Comunidades e chat em tempo real.
+            Liberdade ao VoIP.
           </div>
         </div>
 
@@ -78,7 +73,7 @@ export function LoginScreen({
             type="text"
             value={emailValue}
             onChange={(e) => setEmailValue(e.target.value)}
-            placeholder="admin@example.com"
+            placeholder="jhon@doe.com"
             className="min-h-9 rounded-md border border-divider bg-surface/60 px-2.5 py-1.5 text-[14px] outline-none focus-visible:border-accent"
           />
         </div>

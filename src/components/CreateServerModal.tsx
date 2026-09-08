@@ -61,7 +61,7 @@ export function CreateServerModal({
       <form
         onClick={(e) => e.stopPropagation()}
         onSubmit={handleSubmit}
-        className={`flex w-full max-w-[420px] flex-col gap-3 rounded-lg p-5 shadow-xl transition-all duration-200 ease-out ${
+        className={`flex w-full max-w-105 flex-col gap-3 rounded-lg p-5 shadow-xl transition-all duration-200 ease-out ${
           visible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
         }`}
         style={{
