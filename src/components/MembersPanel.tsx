@@ -9,8 +9,8 @@ export function MembersPanel({ open }: { open: boolean }) {
         open ? 'w-55 translate-x-0 opacity-100' : 'w-0 translate-x-3 opacity-0'
       }`}
       style={{
-        background: 'color-mix(in srgb, var(--agree-surface) 45%, transparent)',
-        backdropFilter: 'blur(22px) saturate(150%)',
+        background: 'color-mix(in srgb, var(--agree-surface) var(--agree-glass-opacity, 45%), transparent)',
+        backdropFilter: 'blur(var(--agree-blur, 22px)) saturate(150%)',
       }}
     >
       <div className="flex w-55 flex-none flex-col items-center gap-3 overflow-y-auto p-4 text-center">

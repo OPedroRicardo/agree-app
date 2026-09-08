@@ -13,8 +13,8 @@ export function ReconnectingScreen() {
       <div
         className="flex w-[340px] flex-col items-center gap-4 rounded-2xl p-8 text-center"
         style={{
-          background: 'color-mix(in srgb, var(--agree-surface) 55%, transparent)',
-          backdropFilter: 'blur(24px) saturate(160%)',
+          background: 'color-mix(in srgb, var(--agree-surface) var(--agree-glass-opacity, 55%), transparent)',
+          backdropFilter: 'blur(var(--agree-blur, 24px)) saturate(160%)',
           animation: 'agree-fade-scale 0.45s ease both',
         }}
       >

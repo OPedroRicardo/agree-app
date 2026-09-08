@@ -10,7 +10,7 @@ export function UserBar({ onOpenSettings }: { onOpenSettings: () => void }) {
   return (
     <div
       className="flex h-18 w-full flex-none items-center gap-2.5 px-3.5 py-5"
-      style={{ background: 'color-mix(in srgb, var(--agree-bg) 50%, transparent)' }}
+      style={{ background: 'color-mix(in srgb, var(--agree-bg) var(--agree-glass-opacity, 50%), transparent)' }}
     >
       <Avatar seed={username || '?'} size={32} />
       <div className="min-w-0 flex-1">

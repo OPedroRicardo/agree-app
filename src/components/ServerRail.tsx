@@ -23,7 +23,7 @@ export function ServerRail({
   return (
     <div
       className="flex w-15 flex-none flex-col items-center gap-2.5 py-1.5"
-      style={{ background: 'color-mix(in srgb, var(--agree-bg) 45%, transparent)' }}
+      style={{ background: 'color-mix(in srgb, var(--agree-bg) var(--agree-glass-opacity, 45%), transparent)' }}
     >
       <button
         type="button"

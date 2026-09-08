@@ -19,7 +19,7 @@ export function ChannelSidebar({
     <div
       className="flex w-60 flex-none flex-col overflow-hidden"
       style={{
-        background: 'color-mix(in srgb, var(--agree-surface) 50%, transparent)',
+        background: 'color-mix(in srgb, var(--agree-surface) var(--agree-glass-opacity, 50%), transparent)',
         animation: 'agree-slide-right 0.35s ease both',
       }}
     >

@@ -90,13 +90,13 @@ export function ChatArea({
   return (
     <div
       className="flex min-w-0 flex-1 flex-col overflow-hidden"
-      style={{ background: 'color-mix(in srgb, var(--agree-bg) 30%, transparent)' }}
+      style={{ background: 'color-mix(in srgb, var(--agree-bg) var(--agree-glass-opacity, 30%), transparent)' }}
     >
       <div
         className="flex h-14 flex-none items-center gap-3 border-b border-divider px-5"
         style={{
-          background: 'color-mix(in srgb, var(--agree-bg) 35%, transparent)',
-          backdropFilter: 'blur(16px)',
+          background: 'color-mix(in srgb, var(--agree-bg) var(--agree-glass-opacity, 35%), transparent)',
+          backdropFilter: 'blur(var(--agree-blur, 16px))',
         }}
       >
         <div className="text-[15px] font-semibold">
@@ -214,7 +214,7 @@ export function ChatArea({
         className="flex h-18 flex-none items-center gap-2.5"
         style={{
           background: 'var(--agree-bg)',
-          backdropFilter: 'blur(16px)',
+          backdropFilter: 'blur(var(--agree-blur, 16px))',
         }}
       >
         <input

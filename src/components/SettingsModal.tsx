@@ -8,9 +8,11 @@ import {
   resetAllThemeVars,
   setCustomCss,
   setThemeVar,
+  THEME_COLOR_VARS,
+  THEME_RANGE_VARS,
   THEME_VAR_LABELS,
-  THEME_VARS,
-  type ThemeVarName,
+  type ThemeColorVarName,
+  type ThemeRangeVarName,
 } from '@/lib/theme';
 import { Avatar } from './Avatar';
 
@@ -46,15 +48,15 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           visible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
         }`}
         style={{
-          background: 'color-mix(in srgb, var(--agree-surface) 70%, transparent)',
-          backdropFilter: 'blur(20px) saturate(160%)',
+          background: 'color-mix(in srgb, var(--agree-surface) var(--agree-glass-opacity, 70%), transparent)',
+          backdropFilter: 'blur(var(--agree-blur, 20px)) saturate(160%)',
         }}
       >
         <div
           className="flex w-56 flex-none flex-col gap-1 p-4"
           style={{
-            background: 'color-mix(in srgb, var(--agree-bg) 45%, transparent)',
-            backdropFilter: 'blur(16px)',
+            background: 'color-mix(in srgb, var(--agree-bg) var(--agree-glass-opacity, 45%), transparent)',
+            backdropFilter: 'blur(var(--agree-blur, 16px))',
           }}
         >
           <div className="mb-3 px-2 text-[16px] font-semibold">Configurações</div>
@@ -131,25 +133,42 @@ function ReadOnlyField({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** Aba "Tema": editor de cores das variáveis `--agree-*` + editor de CSS customizado, ambos persistidos via `src/lib/theme.ts`. */
+/** Aba "Tema": editor de cores + aparência (opacidade/blur/borda/raio) das variáveis `--agree-*`, mais um editor de CSS customizado — tudo persistido via `src/lib/theme.ts`. */
 function ThemeTab() {
-  const [values, setValues] = useState<Record<ThemeVarName, string>>(() => {
-    const initial = {} as Record<ThemeVarName, string>;
-    for (const name of THEME_VARS) initial[name] = getCurrentThemeVarValue(name);
+  const [colorValues, setColorValues] = useState<Record<ThemeColorVarName, string>>(() => {
+    const initial = {} as Record<ThemeColorVarName, string>;
+    for (const name of THEME_COLOR_VARS) initial[name] = getCurrentThemeVarValue(name);
+    return initial;
+  });
+  const [rangeValues, setRangeValues] = useState<Record<ThemeRangeVarName, number>>(() => {
+    const initial = {} as Record<ThemeRangeVarName, number>;
+    for (const v of THEME_RANGE_VARS) {
+      const stored = parseFloat(getCurrentThemeVarValue(v.name));
+      initial[v.name] = Number.isFinite(stored) ? stored : v.defaultValue;
+    }
     return initial;
   });
   const [customCss, setCustomCssInput] = useState(() => getStoredCustomCss());
 
-  function handleVarChange(name: ThemeVarName, value: string) {
-    setValues((prev) => ({ ...prev, [name]: value }));
+  function handleColorChange(name: ThemeColorVarName, value: string) {
+    setColorValues((prev) => ({ ...prev, [name]: value }));
     setThemeVar(name, value);
+  }
+
+  function handleRangeChange(name: ThemeRangeVarName, value: number, unit: '%' | 'px') {
+    setRangeValues((prev) => ({ ...prev, [name]: value }));
+    setThemeVar(name, `${value}${unit}`);
   }
 
   function handleRestoreDefaults() {
     resetAllThemeVars();
-    const restored = {} as Record<ThemeVarName, string>;
-    for (const name of THEME_VARS) restored[name] = getCurrentThemeVarValue(name);
-    setValues(restored);
+    const restoredColors = {} as Record<ThemeColorVarName, string>;
+    for (const name of THEME_COLOR_VARS) restoredColors[name] = getCurrentThemeVarValue(name);
+    setColorValues(restoredColors);
+
+    const restoredRanges = {} as Record<ThemeRangeVarName, number>;
+    for (const v of THEME_RANGE_VARS) restoredRanges[v.name] = v.defaultValue;
+    setRangeValues(restoredRanges);
   }
 
   function handleApplyCustomCss() {
@@ -176,12 +195,30 @@ function ThemeTab() {
         </div>
 
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-          {THEME_VARS.map((name) => (
+          {THEME_COLOR_VARS.map((name) => (
             <ColorField
               key={name}
               label={THEME_VAR_LABELS[name]}
-              value={values[name]}
-              onChange={(value) => handleVarChange(name, value)}
+              value={colorValues[name]}
+              onChange={(value) => handleColorChange(name, value)}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <div className="text-[13px] font-semibold text-neutral-400">Aparência dos painéis</div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {THEME_RANGE_VARS.map((v) => (
+            <RangeField
+              key={v.name}
+              label={v.label}
+              unit={v.unit}
+              min={v.min}
+              max={v.max}
+              step={v.step}
+              value={rangeValues[v.name]}
+              onChange={(value) => handleRangeChange(v.name, value, v.unit)}
             />
           ))}
         </div>
@@ -244,6 +281,47 @@ function ColorField({
           className="min-h-9 w-full min-w-0 rounded-md border border-divider bg-bg/60 px-2.5 py-1.5 text-[13px] outline-none transition-colors focus-visible:border-accent"
         />
       </div>
+    </div>
+  );
+}
+
+/** Campo numérico com `<input type="range">` sincronizado a um valor exibido com a unidade (`%`/`px`). */
+function RangeField({
+  label,
+  unit,
+  min,
+  max,
+  step,
+  value,
+  onChange,
+}: {
+  label: string;
+  unit: '%' | 'px';
+  min: number;
+  max: number;
+  step: number;
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between">
+        <label className="text-[12px] text-neutral-400">{label}</label>
+        <span className="text-[12px] font-medium text-text">
+          {value}
+          {unit}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="h-9 w-full cursor-pointer accent-accent"
+        aria-label={label}
+      />
     </div>
   );
 }

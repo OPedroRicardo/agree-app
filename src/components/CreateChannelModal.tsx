@@ -59,8 +59,8 @@ export function CreateChannelModal({
           visible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
         }`}
         style={{
-          background: 'color-mix(in srgb, var(--agree-surface) 70%, transparent)',
-          backdropFilter: 'blur(20px) saturate(160%)',
+          background: 'color-mix(in srgb, var(--agree-surface) var(--agree-glass-opacity, 70%), transparent)',
+          backdropFilter: 'blur(var(--agree-blur, 20px)) saturate(160%)',
         }}
       >
         <div className="flex items-center justify-between">

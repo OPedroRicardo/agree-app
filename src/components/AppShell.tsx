@@ -524,7 +524,7 @@ export function AppShell() {
     >
       <div
         className="flex w-75 flex-none flex-col overflow-hidden"
-        style={{ backdropFilter: 'blur(20px) saturate(150%)' }}
+        style={{ backdropFilter: 'blur(var(--agree-blur, 20px)) saturate(150%)' }}
       >
         <div className="flex min-h-0 flex-1 overflow-hidden">
           <ServerRail
