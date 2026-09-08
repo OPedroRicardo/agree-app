@@ -25,22 +25,30 @@ export function ServerRail({
       className="flex w-15 flex-none flex-col items-center gap-2.5 py-1.5"
       style={{ background: 'color-mix(in srgb, var(--agree-bg) var(--agree-glass-opacity, 45%), transparent)' }}
     >
-      <button
-        type="button"
-        title="Mensagens diretas"
-        onClick={onOpenDms}
-        className={`flex h-10 w-10 items-center justify-center rounded-full border-2 text-[19px] transition-all duration-200 ease-out hover:scale-105 ${
-          dmViewActive
-            ? 'border-accent bg-accent/15 text-accent'
-            : 'border-transparent bg-surface/60 text-neutral-400 hover:text-text'
-        }`}
-      >
-        <MessageCircle size={18} />
-      </button>
+      {/* Reserves the same width as the list's scrollbar gutter below (10px,
+          see index.css) so this button stays centered with the server icons
+          whether or not the list is actually scrollable. */}
+      <div className="flex w-full justify-center pr-2.5">
+        <button
+          type="button"
+          title="Mensagens diretas"
+          onClick={onOpenDms}
+          className={`flex h-10 w-10 flex-none items-center justify-center rounded-full border-2 text-[19px] transition-all duration-200 ease-out hover:scale-105 ${
+            dmViewActive
+              ? 'border-accent bg-accent/15 text-accent'
+              : 'border-transparent bg-surface/60 text-neutral-400 hover:text-text'
+          }`}
+        >
+          <MessageCircle size={18} />
+        </button>
+      </div>
 
       <div className="h-px w-8 bg-divider" />
 
-      <div className="flex min-h-0 w-full flex-1 flex-col items-center gap-2.5 overflow-x-hidden overflow-y-auto">
+      <div
+        className="flex min-h-0 w-full flex-1 flex-col items-center gap-2.5 overflow-x-hidden overflow-y-auto"
+        style={{ scrollbarGutter: 'stable' }}
+      >
         {servers.map((server) => (
           <ServerIcon
             key={server._id}
@@ -49,7 +57,11 @@ export function ServerRail({
             onSelect={() => onSelectServer(server._id)}
           />
         ))}
+      </div>
 
+      {/* Outside the scrolling list on purpose — always visible without
+          having to scroll all the way down past every server. */}
+      <div className="flex w-full flex-none justify-center pr-2.5">
         <button
           type="button"
           title="Adicionar servidor"
