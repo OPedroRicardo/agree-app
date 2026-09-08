@@ -3,7 +3,7 @@ import type { AgreeChannel, AgreeServer, ChatMessage, LoggedUser } from './types
 /** Base URL of the Agree NestJS backend. */
 const BACKEND_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
-/** Thrown by {@link request} for any non-2xx response; `status` is the HTTP status code. */
+/** Thrown by {@link request} for any non-2xx response. `status: 0` means `fetch` itself failed (backend unreachable). */
 export class ApiError extends Error {
   status: number;
 
@@ -19,11 +19,16 @@ export class ApiError extends Error {
  * `POST /auth/login` — the app never handles the JWT directly.
  */
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BACKEND_URL}${path}`, {
-    ...options,
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...options.headers },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BACKEND_URL}${path}`, {
+      ...options,
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ...options.headers },
+    });
+  } catch {
+    throw new ApiError(0, 'Não foi possível conectar ao backend do Agree.');
+  }
 
   if (!res.ok) {
     const body = await res.json().catch(() => null);
@@ -35,6 +40,16 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
+}
+
+/** `GET /health`. Never throws — resolves `true`/`false`, for polling until the backend comes back. */
+export async function checkHealth(): Promise<boolean> {
+  try {
+    const res = await fetch(`${BACKEND_URL}/health`);
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 /** `POST /auth/login`. `login` is a username or email. */

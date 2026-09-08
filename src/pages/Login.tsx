@@ -13,7 +13,7 @@ export function LoginPage() {
     if (state.status === 'signed-in') navigate('/', { replace: true });
   }, [state.status, navigate]);
 
-  if (state.status === 'loading' || state.status === 'signed-in') {
+  if (state.status === 'loading' || state.status === 'signed-in' || state.status === 'unreachable') {
     return <LoadingScreen />;
   }
 
