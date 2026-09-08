@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { MessageCircle, Plus } from 'lucide-react';
 import type { AgreeServer } from '@/lib/types';
+import { HoverPlayImage } from './HoverPlayImage';
 
 /** 60px column of server icons, plus disabled DM and "add server" buttons. */
 export function ServerRail({
@@ -78,12 +79,13 @@ function ServerIcon({
         type="button"
         onClick={onSelect}
         aria-current={isActive}
+        title={server.name}
         className={`flex h-10 w-10 flex-none items-center justify-center overflow-hidden border-2 bg-surface/70 text-[16px] font-semibold text-text transition-all duration-200 ease-out hover:scale-105 hover:rounded-lg hover:border-accent hover:shadow-[0_0_0_4px_rgba(145,132,217,0.18)] active:scale-95 ${
           isActive ? 'rounded-lg border-accent' : 'rounded-full border-transparent'
         }`}
       >
         {showImage ? (
-          <img
+          <HoverPlayImage
             src={server.logoImg}
             alt={server.name}
             className="h-full w-full object-cover"
