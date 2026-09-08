@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router';
 import { isTauri } from '@tauri-apps/api/core';
 import { AuthProvider } from '@/lib/auth-context';
 import { applyStoredTheme } from '@/lib/theme';
+import { checkForUpdatesAndInstall } from '@/lib/updater';
 import App from './App';
 import './index.css';
 
@@ -14,6 +15,7 @@ applyStoredTheme();
 // No navegador (`vite dev`) não há janela transparente, então mantemos o fundo sólido.
 if (isTauri()) {
   document.documentElement.classList.add('tauri');
+  void checkForUpdatesAndInstall();
 }
 
 createRoot(document.getElementById('root')!).render(

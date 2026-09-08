@@ -10,6 +10,7 @@
 
 # tauri
 /src-tauri/target
+/src-tauri/updater.key
 
 # misc
 .DS_Store
