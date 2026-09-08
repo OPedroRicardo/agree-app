@@ -22,3 +22,16 @@ export function createChatSocket(): Socket {
     transports: ['websocket'],
   });
 }
+
+/**
+ * Builds a socket.io client for `VoiceGateway` (`/voice`). Same `Manager`
+ * (same URL) as the chat socket, so socket.io reuses the underlying
+ * connection — see `docs/voice-client.md`.
+ */
+export function createVoiceSocket(): Socket {
+  return io(`${WS_URL}/voice`, {
+    withCredentials: true,
+    autoConnect: false,
+    transports: ['websocket'],
+  });
+}

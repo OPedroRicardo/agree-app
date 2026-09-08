@@ -6,12 +6,15 @@ export function ChannelSidebar({
   server,
   channels,
   activeChannelId,
+  activeVoiceChannelId,
   onSelectChannel,
   onOpenCreateChannel,
 }: {
   server: AgreeServer | null;
   channels: AgreeChannel[];
   activeChannelId: string | null;
+  /** Canal de voz em que a chamada atual está conectada/conectando, se houver. */
+  activeVoiceChannelId?: string | null;
   onSelectChannel: (id: string) => void;
   onOpenCreateChannel: () => void;
 }) {
@@ -41,10 +44,13 @@ export function ChannelSidebar({
                     : 'text-neutral-400 hover:bg-accent/10 hover:text-text'
                 }`}
               >
-                <span className="opacity-50">
+                <span className={channel._id === activeVoiceChannelId ? 'text-online' : 'opacity-50'}>
                   {channel.type === 'voice' ? <Volume2 size={14} /> : <Hash size={14} />}
                 </span>
                 <span className="min-w-0 flex-1 truncate">{channel.name}</span>
+                {channel._id === activeVoiceChannelId && (
+                  <span className="h-1.5 w-1.5 flex-none rounded-full bg-online" title="Conectado" />
+                )}
               </button>
             ))}
 

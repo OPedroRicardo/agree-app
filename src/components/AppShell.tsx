@@ -15,6 +15,7 @@ import {
 import { createChatSocket } from '@/lib/socket';
 import { describeChatError, type ChatErrorPayload } from '@/lib/chat-errors';
 import { conversationLabel } from '@/lib/dm';
+import { VoiceProvider, useVoiceCall } from '@/lib/voice-context';
 import type {
   AgreeChannel,
   AgreeConversation,
@@ -32,6 +33,7 @@ import { CreateServerModal } from './CreateServerModal';
 import { CreateChannelModal } from './CreateChannelModal';
 import { SettingsModal } from './SettingsModal';
 import { UserBar } from './UserBar';
+import { VoiceStatusBar } from './VoiceStatusBar';
 
 // Regex for the per-conversation broadcast event name
 const CONVERSATION_EVENT = /^conversation:(.+):messages$/;
@@ -43,7 +45,16 @@ const MESSAGE_PAGE_SIZE = 50;
  * messages, the socket, and the drawer/modal flags.
  */
 export function AppShell() {
+  return (
+    <VoiceProvider>
+      <AppShellContent />
+    </VoiceProvider>
+  );
+}
+
+function AppShellContent() {
   const { state, expireSession, markUnreachable } = useAuth();
+  const voice = useVoiceCall();
   const signedIn = state.status === 'signed-in';
   const selfId = state.status === 'signed-in' ? state.user.sub : null;
 
@@ -506,6 +517,16 @@ export function AppShell() {
     [],
   );
 
+  /** Selects a channel for the chat pane and, if it's a voice channel, joins its call — clicking a voice channel both opens and connects it. */
+  const handleSelectChannel = useCallback(
+    (id: string) => {
+      setActiveChannelId(id);
+      const channel = channels.find((c) => c._id === id);
+      if (channel?.type === 'voice') voice.join(id);
+    },
+    [channels, voice],
+  );
+
   /** Creates a channel on the active server via `POST /server/:serverId/channel`. */
   const handleCreateChannel = useCallback(
     async (data: Pick<AgreeChannel, 'name' | 'type'>) => {
@@ -543,7 +564,8 @@ export function AppShell() {
               server={activeServer}
               channels={channels}
               activeChannelId={activeChannelId}
-              onSelectChannel={setActiveChannelId}
+              activeVoiceChannelId={voice.activeChannelId}
+              onSelectChannel={handleSelectChannel}
               onOpenCreateChannel={() => setShowCreateChannelModal(true)}
             />
           ) : (
@@ -562,6 +584,13 @@ export function AppShell() {
             )
           )}
         </div>
+        {voice.activeChannelId && (
+          <VoiceStatusBar
+            channelName={
+              channels.find((c) => c._id === voice.activeChannelId)?.name ?? 'Canal de voz'
+            }
+          />
+        )}
         <UserBar onOpenSettings={() => setShowSettings(true)} />
       </div>
 
@@ -602,7 +631,9 @@ export function AppShell() {
         />
       )}
 
-      {view === 'servers' && <MembersPanel open={showMembers} />}
+      {view === 'servers' && (
+        <MembersPanel open={showMembers} server={activeServer} selfId={selfId} />
+      )}
 
       {showCreateServerModal && (
         <CreateServerModal
