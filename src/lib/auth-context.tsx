@@ -21,11 +21,11 @@ import type { LoggedUser } from './types';
 const RECONNECT_POLL_MS = 3000;
 
 /**
- * Session state. The JWT itself lives only in an httpOnly cookie (set by the
- * backend's `POST /auth/login`, read by its HTTP guard and WS gateway) — it
- * never reaches this state or `localStorage`. `unreachable` means the
- * backend didn't respond at all (network/connection failure), as opposed to
- * `signed-out`, which means it responded and said "no session".
+ * Session state. O JWT em si não mora aqui: fica em `token.ts`, e é de lá que
+ * `api.ts` e `socket.ts` o pegam para autenticar. Este estado guarda só o
+ * usuário resolvido a partir dele. `unreachable` means the backend didn't
+ * respond at all (network/connection failure), as opposed to `signed-out`,
+ * which means it responded and said "no session".
  */
 type AuthState =
   | { status: 'loading' }

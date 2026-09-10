@@ -1,3 +1,4 @@
+import { clearToken, getToken, setToken } from './token';
 import type {
   AgreeChannel,
   AgreeConversation,
@@ -21,17 +22,24 @@ export class ApiError extends Error {
 }
 
 /**
- * Shared `fetch` wrapper for the Agree backend. `credentials: 'include'`
- * makes the browser send the httpOnly `agree_token` cookie set by
- * `POST /auth/login` — the app never handles the JWT directly.
+ * Shared `fetch` wrapper for the Agree backend. Autentica com o JWT de
+ * `token.ts` no header `Authorization: Bearer` — o guard do backend lê esse
+ * header antes de tentar o cookie. `credentials: 'include'` fica por conta do
+ * caso same-site (o backend também seta um cookie httpOnly no login), mas não
+ * é dele que a sessão depende aqui; veja o porquê em `token.ts`.
  */
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = getToken();
   let res: Response;
   try {
     res = await fetch(`${BACKEND_URL}${path}`, {
       ...options,
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json', ...options.headers },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
     });
   } catch {
     throw new ApiError(0, 'Não foi possível conectar ao backend do Agree.');
@@ -59,12 +67,26 @@ export async function checkHealth(): Promise<boolean> {
   }
 }
 
-/** `POST /auth/login`. `login` is a username or email. */
-export function login(login: string, password: string) {
-  return request<{ ok: true }>('/auth/login', {
+/** `POST /auth/login`. `login` is a username or email. Guarda o token devolvido — é o que autentica todo request e todo socket daí em diante. */
+export async function login(login: string, password: string) {
+  const res = await request<{ ok: true; access_token: string }>('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ login, password }),
   });
+
+  // Um backend anterior a esta mudança responde `{ ok: true }` e mais nada.
+  // Sem esta guarda o app guardaria `undefined` como token e só descobriria no
+  // 401 do `/auth/profile` logo em seguida — erro muito mais difícil de ligar
+  // à causa do que uma falha aqui.
+  if (!res.access_token) {
+    throw new ApiError(
+      500,
+      'O backend não devolveu um token de sessão. Ele precisa estar em uma versão que inclua `access_token` na resposta do login.',
+    );
+  }
+
+  setToken(res.access_token);
+  return res;
 }
 
 /** `GET /auth/profile`. */
@@ -72,9 +94,19 @@ export function getProfile() {
   return request<LoggedUser>('/auth/profile');
 }
 
-/** `POST /auth/logout` — clears the session cookie. */
-export function logout() {
-  return request<{ ok: true }>('/auth/logout', { method: 'POST' });
+/**
+ * `POST /auth/logout`. Nunca rejeita: quem encerra a sessão é o `clearToken`
+ * local, então um backend fora do ar não pode prender o usuário logado. A
+ * chamada em si só existe para limpar o cookie do lado same-site.
+ */
+export async function logout(): Promise<void> {
+  try {
+    await request<{ ok: true }>('/auth/logout', { method: 'POST' });
+  } catch {
+    // Ignorado de propósito — ver acima.
+  } finally {
+    clearToken();
+  }
 }
 
 /** `GET /server`. */
