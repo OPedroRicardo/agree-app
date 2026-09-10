@@ -2,14 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { MessageCirclePlus, Send, Sparkles, Users } from 'lucide-react';
 import type { AgreeChannel, AgreeServer, ChatMessage } from '@/lib/types';
 import { Avatar, initialsOf } from './Avatar';
-
-/** Formats an ISO timestamp as `HH:MM` (pt-BR). */
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('pt-BR', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+import { RelativeTime } from './RelativeTime';
 
 /**
  * Message list, composer and header for the active channel or DM. `dmMode`
@@ -204,9 +197,7 @@ export function ChatArea({
                 <span className="text-[14px] font-semibold">
                   {msg.senderUsername || initialsOf(msg.senderId)}
                 </span>
-                <span className="text-[11px] text-neutral-500">
-                  {formatTime(msg.createdAt)}
-                </span>
+                <RelativeTime iso={msg.createdAt} className="text-[11px] text-neutral-500" />
               </div>
               <div className="wrap-break-word text-[14px] leading-relaxed">{msg.content}</div>
             </div>
