@@ -1,19 +1,20 @@
 import { useEffect, useState } from 'react';
 import { UserMinus, UserPlus, Users } from 'lucide-react';
+import { addServerMember, ApiError, listUsers, removeServerMember } from '@/lib/api';
 import {
-  addServerMember,
-  ApiError,
-  listServerMembers,
-  listUsers,
-  removeServerMember,
-} from '@/lib/api';
+  revalidateServerMembers,
+  updateServerMembers,
+  useServerMembers,
+} from '@/lib/server-members';
 import type { AgreeServer, AgreeUser } from '@/lib/types';
 import { Avatar } from './Avatar';
 import { AddMemberModal } from './AddMemberModal';
 
 /**
  * Right-side drawer — member roster of `server`, always mounted (so the
- * close transition plays) but only fetches while `open`. The owner
+ * close transition plays) but only fetches while `open`. The roster lives in
+ * the shared `server-members` cache: opening shows the cached list at once
+ * and revalidates it in the background. The owner
  * (`server.ownerId === selfId`) additionally gets a button to add a member
  * and a remove button per row — everyone else just sees the list.
  */
@@ -26,9 +27,15 @@ export function MembersPanel({
   server: AgreeServer | null;
   selfId: string | null;
 }) {
-  const [members, setMembers] = useState<AgreeUser[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const serverId = server?._id ?? null;
+  const cached = useServerMembers(serverId, { autoFetch: false });
+  const members = cached.members ?? [];
+  // Only the very first fetch shows a spinner — a revalidation keeps the
+  // cached list on screen.
+  const loading = cached.loading && cached.members === null;
+  const [mutationError, setMutationError] = useState<string | null>(null);
+  const error =
+    mutationError ?? (cached.error ? 'Não foi possível carregar os membros.' : null);
   const [removingId, setRemovingId] = useState<string | null>(null);
 
   const [showAddModal, setShowAddModal] = useState(false);
@@ -39,24 +46,10 @@ export function MembersPanel({
   const isOwner = Boolean(server?.ownerId && server.ownerId === selfId);
 
   useEffect(() => {
-    if (!open || !server) return;
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    listServerMembers(server._id)
-      .then((list) => {
-        if (!cancelled) setMembers(list);
-      })
-      .catch(() => {
-        if (!cancelled) setError('Não foi possível carregar os membros.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [open, server]);
+    if (!open || !serverId) return;
+    setMutationError(null);
+    void revalidateServerMembers(serverId);
+  }, [open, serverId]);
 
   function handleOpenAddModal() {
     setShowAddModal(true);
@@ -71,9 +64,13 @@ export function MembersPanel({
   function handleAddUser(user: AgreeUser) {
     if (!server) return;
     addServerMember(server._id, user.id)
-      .then(() => setMembers((prev) => (prev.some((m) => m.id === user.id) ? prev : [...prev, user])))
+      .then(() =>
+        updateServerMembers(server._id, (prev) =>
+          prev.some((m) => m.id === user.id) ? prev : [...prev, user],
+        ),
+      )
       .catch((err) => {
-        setError(
+        setMutationError(
           err instanceof ApiError ? err.message : 'Não foi possível adicionar o membro.',
         );
       });
@@ -83,9 +80,9 @@ export function MembersPanel({
     if (!server) return;
     setRemovingId(userId);
     removeServerMember(server._id, userId)
-      .then(() => setMembers((prev) => prev.filter((m) => m.id !== userId)))
+      .then(() => updateServerMembers(server._id, (prev) => prev.filter((m) => m.id !== userId)))
       .catch((err) => {
-        setError(
+        setMutationError(
           err instanceof ApiError ? err.message : 'Não foi possível remover o membro.',
         );
       })

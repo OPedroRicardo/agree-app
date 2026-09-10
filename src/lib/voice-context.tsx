@@ -16,6 +16,8 @@ type VoiceConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting'
 
 type VoiceContextValue = {
   activeChannelId: string | null;
+  /** Servidor do canal da chamada — não é o servidor aberto na tela, a chamada continua ao trocar de servidor ou ir pras DMs. */
+  activeServerId: string | null;
   connectionState: VoiceConnectionState;
   participants: VoiceParticipant[];
   muted: boolean;
@@ -23,7 +25,7 @@ type VoiceContextValue = {
   speakingUserIds: Set<string>;
   error: string | null;
   playbackBlocked: boolean;
-  join: (channelId: string) => void;
+  join: (channelId: string, serverId: string) => void;
   leave: () => void;
   toggleMuted: () => void;
   toggleDeafened: () => void;
@@ -46,6 +48,7 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
   const client = clientRef.current;
 
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
+  const [activeServerId, setActiveServerId] = useState<string | null>(null);
   const [connectionState, setConnectionState] = useState<VoiceConnectionState>('idle');
   const [remoteParticipants, setRemoteParticipants] = useState<VoiceParticipant[]>([]);
   const [selfState, setSelfState] = useState({ muted: false, deafened: false });
@@ -56,7 +59,10 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const offState = client.on('connection-state', (s) => {
       setConnectionState(s);
-      if (s === 'idle' || s === 'error') setActiveChannelId(null);
+      if (s === 'idle' || s === 'error') {
+        setActiveChannelId(null);
+        setActiveServerId(null);
+      }
     });
     const offParticipants = client.on('participants', setRemoteParticipants);
     const offSelf = client.on('self-state', setSelfState);
@@ -89,9 +95,10 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
   useEffect(() => () => void client.leave(), [client]);
 
   const join = useCallback(
-    (channelId: string) => {
+    (channelId: string, serverId: string) => {
       setError(null);
       setActiveChannelId(channelId);
+      setActiveServerId(serverId);
       void client.join(channelId);
     },
     [client],
@@ -100,6 +107,7 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
   const leave = useCallback(() => {
     void client.leave();
     setActiveChannelId(null);
+    setActiveServerId(null);
   }, [client]);
 
   const toggleMuted = useCallback(() => client.setMuted(!client.getSelfState().muted), [client]);
@@ -135,6 +143,7 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
   const value = useMemo<VoiceContextValue>(
     () => ({
       activeChannelId,
+      activeServerId,
       connectionState,
       participants,
       muted: selfState.muted,
@@ -151,6 +160,7 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
     }),
     [
       activeChannelId,
+      activeServerId,
       connectionState,
       participants,
       selfState,

@@ -226,7 +226,11 @@ function AppShellContent() {
           type: 'dm',
           participants: [
             { id: selfIdRef.current, username: null, profileImageUrl: null },
-            { id: payload.senderId, username: payload.senderUsername, profileImageUrl: null },
+            {
+              id: payload.senderId,
+              username: payload.senderUsername,
+              profileImageUrl: payload.senderAvatarUrl || null,
+            },
           ],
           createdAt: payload.createdAt,
           lastMessageAt: payload.createdAt,
@@ -522,9 +526,9 @@ function AppShellContent() {
     (id: string) => {
       setActiveChannelId(id);
       const channel = channels.find((c) => c._id === id);
-      if (channel?.type === 'voice') voice.join(id);
+      if (channel?.type === 'voice' && activeServerId) voice.join(id, activeServerId);
     },
-    [channels, voice],
+    [channels, voice, activeServerId],
   );
 
   /** Creates a channel on the active server via `POST /server/:serverId/channel`. */

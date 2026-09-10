@@ -90,7 +90,8 @@ src/
     socket.ts              # cliente socket.io pro ChatGateway
     auth-context.tsx       # estado de sessão (loading/unreachable/signed-out/signed-in)
     chat-errors.ts         # traduz erros do WS pra mensagens em PT-BR
-    dm.ts                  # label de exibição de uma conversa (a partir do outro participante)
+    dm.ts                  # label e foto de exibição de uma conversa (a partir do outro participante)
+    server-members.ts      # cache compartilhado de GET /server/:id/members (MembersPanel + VoiceStatusBar)
     theme.ts               # overrides de tema (--agree-*) e CSS custom, persistidos em localStorage
     types.ts               # tipos compartilhados com o shape da API
 src-tauri/                 # shell desktop Tauri (janela nativa transparente, ver tauri.conf.json)

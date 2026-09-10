@@ -28,7 +28,7 @@ export type ChatMessage = {
   conversationId: string;
   senderId: string;
   senderUsername: string;
-  /** Always `""` today — the backend never populates it (see TODO.md). */
+  /** The sender's `profileImageUrl` as of when the message was sent; `""` when they had none (and on every message sent before the backend populated it). */
   senderAvatarUrl: string;
   content: string;
   /** ISO 8601 timestamp. */

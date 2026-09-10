@@ -1,4 +1,6 @@
 import { Mic, MicOff, PhoneOff, Volume2, VolumeX } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
+import { useServerMembersById } from '@/lib/server-members';
 import { useVoiceCall } from '@/lib/voice-context';
 import { Avatar } from './Avatar';
 
@@ -10,6 +12,7 @@ import { Avatar } from './Avatar';
  */
 export function VoiceStatusBar({ channelName }: { channelName: string }) {
   const {
+    activeServerId,
     connectionState,
     participants,
     muted,
@@ -23,6 +26,18 @@ export function VoiceStatusBar({ channelName }: { channelName: string }) {
     dismissError,
     retryBlockedPlayback,
   } = useVoiceCall();
+
+  // A foto de quem está na chamada não vem no `VoiceParticipant`: a própria
+  // sai do perfil (mesma fonte da `UserBar`), a dos outros da lista de
+  // membros do servidor da chamada, em cache compartilhado com o `MembersPanel`.
+  const { state: authState } = useAuth();
+  const self = authState.status === 'signed-in' ? authState.user : null;
+  const membersById = useServerMembersById(
+    activeServerId,
+    participants.map((p) => p.userId),
+  );
+  const pictureOf = (userId: string) =>
+    userId === self?.sub ? self.profileImageUrl : membersById.get(userId)?.profileImageUrl;
 
   const statusLabel =
     connectionState === 'connecting'
@@ -63,6 +78,7 @@ export function VoiceStatusBar({ channelName }: { channelName: string }) {
             <div key={p.userId} className="relative" title={p.username}>
               <Avatar
                 seed={p.username}
+                avatarUrl={pictureOf(p.userId)}
                 size={26}
                 className={`ring-2 transition-shadow ${
                   speakingUserIds.has(p.userId) ? 'ring-online' : 'ring-transparent'

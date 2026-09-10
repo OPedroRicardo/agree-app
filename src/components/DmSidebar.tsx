@@ -1,6 +1,6 @@
 import { Plus } from 'lucide-react';
 import type { AgreeConversation } from '@/lib/types';
-import { conversationLabel } from '@/lib/dm';
+import { conversationAvatarUrl, conversationLabel } from '@/lib/dm';
 import { Avatar } from './Avatar';
 
 /** Conversation list for the "Mensagens diretas" view — the DM counterpart of {@link ChannelSidebar}. */
@@ -51,7 +51,7 @@ export function DmSidebar({
                   : 'text-neutral-400 hover:bg-accent/10 hover:text-text'
               }`}
             >
-              <Avatar seed={label} size={26} />
+              <Avatar seed={label} avatarUrl={conversationAvatarUrl(conversation, selfId)} size={26} />
               <span className="min-w-0 flex-1 truncate">{label}</span>
             </button>
           );

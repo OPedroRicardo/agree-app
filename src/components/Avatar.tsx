@@ -31,22 +31,25 @@ export function Avatar({
   className = "",
 }: {
   seed: string;
-  avatarUrl?: string;
+  /** `''`, `null` and `undefined` all mean "no picture" — e.g. messages sent before `senderAvatarUrl` was populated. */
+  avatarUrl?: string | null;
   /** Diameter in pixels. */
   size?: number;
   className?: string;
 }) {
-  const [imageFailed, setImageFailed] = useState(false);
-  const showImage = Boolean(avatarUrl) && !imageFailed;
+  // Remembers *which* URL failed, not just that one did, so a new URL on the
+  // same instance (a cache revalidation, a changed picture) gets its own try.
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const showImage = Boolean(avatarUrl) && avatarUrl !== failedUrl;
 
   if (showImage) {
     return (
       <img
-        src={avatarUrl}
+        src={avatarUrl!}
         alt={seed}
         width={size}
         height={size}
-        onError={() => setImageFailed(true)}
+        onError={() => setFailedUrl(avatarUrl!)}
         className={`flex-none rounded-full object-cover ${className}`}
         style={{ width: size, height: size }}
       />
