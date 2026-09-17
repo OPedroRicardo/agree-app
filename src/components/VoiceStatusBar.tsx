@@ -1,8 +1,11 @@
-import { Mic, MicOff, PhoneOff, Volume2, VolumeX } from 'lucide-react';
+import { useCallback, useState } from 'react';
+import { Mic, MicOff, PhoneOff, ScreenShare, ScreenShareOff, Video, VideoOff, Volume2, VolumeX } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useServerMembersById } from '@/lib/server-members';
 import { useVoiceCall } from '@/lib/voice-context';
+import { canShareScreen } from '@/lib/voice-media';
 import { Avatar } from './Avatar';
+import { ScreenShareMenu } from './ScreenShareMenu';
 
 /**
  * Barra de status da chamada de voz ativa — só existe enquanto
@@ -25,7 +28,19 @@ export function VoiceStatusBar({ channelName }: { channelName: string }) {
     toggleDeafened,
     dismissError,
     retryBlockedPlayback,
+    videoAvailable,
+    localCamera,
+    localScreen,
+    toggleCamera,
+    startScreenShare,
+    stopScreenShare,
   } = useVoiceCall();
+
+  const [screenMenuOpen, setScreenMenuOpen] = useState(false);
+  const closeScreenMenu = useCallback(() => setScreenMenuOpen(false), []);
+  // Câmera/tela só existem com o SFU configurado no backend (`ack.video !== null`),
+  // e a tela só onde o runtime tem `getDisplayMedia`.
+  const mediaDisabled = connectionState !== 'connected';
 
   // A foto de quem está na chamada não vem no `VoiceParticipant`: a própria
   // sai do perfil (mesma fonte da `UserBar`), a dos outros da lista de
@@ -91,6 +106,42 @@ export function VoiceStatusBar({ channelName }: { channelName: string }) {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {videoAvailable && (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            title={localCamera ? 'Desligar câmera' : 'Ligar câmera'}
+            onClick={toggleCamera}
+            disabled={mediaDisabled}
+            className={`flex h-7 flex-1 items-center justify-center gap-1.5 rounded-md text-[11px] font-medium transition-all duration-150 active:scale-95 disabled:opacity-50 ${
+              localCamera ? 'bg-accent/15 text-accent' : 'bg-bg/50 text-neutral-300 hover:text-text'
+            }`}
+          >
+            {localCamera ? <VideoOff size={13} /> : <Video size={13} />}
+            Câmera
+          </button>
+          {canShareScreen() && (
+            <div className="relative flex flex-1">
+              <button
+                type="button"
+                title={localScreen ? 'Parar compartilhamento' : 'Compartilhar tela'}
+                onClick={() => (localScreen ? stopScreenShare() : setScreenMenuOpen((open) => !open))}
+                disabled={mediaDisabled}
+                className={`flex h-7 flex-1 items-center justify-center gap-1.5 rounded-md text-[11px] font-medium transition-all duration-150 active:scale-95 disabled:opacity-50 ${
+                  localScreen ? 'bg-accent/15 text-accent' : 'bg-bg/50 text-neutral-300 hover:text-text'
+                }`}
+              >
+                {localScreen ? <ScreenShareOff size={13} /> : <ScreenShare size={13} />}
+                {localScreen ? 'Parar' : 'Tela'}
+              </button>
+              {screenMenuOpen && !localScreen && (
+                <ScreenShareMenu onSelect={startScreenShare} onClose={closeScreenMenu} />
+              )}
+            </div>
+          )}
         </div>
       )}
 

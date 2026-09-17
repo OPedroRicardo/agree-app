@@ -9,8 +9,15 @@ import {
   type ReactNode,
 } from 'react';
 import { useAuth } from './auth-context';
-import { VoiceClient } from './voice-client';
-import type { VoiceParticipant } from './types';
+import { VoiceClient, type LocalVideo } from './voice-client';
+import type {
+  SimulcastRid,
+  VoiceContentHint,
+  VoiceParticipant,
+  VoiceTopology,
+  VoiceTrack,
+  VoiceTrackSource,
+} from './types';
 
 type VoiceConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'error';
 
@@ -25,13 +32,29 @@ type VoiceContextValue = {
   speakingUserIds: Set<string>;
   error: string | null;
   playbackBlocked: boolean;
+  topology: VoiceTopology;
+  /** `false` com backend sem SFU (`ack.video === null`) — aí não existe câmera nem tela. */
+  videoAvailable: boolean;
+  /** Tracks locais, pro preview do próprio usuário (a própria track nunca é puxada do SFU). */
+  localCamera: MediaStream | null;
+  localScreen: MediaStream | null;
+  screenHint: VoiceContentHint | null;
+  /** Vídeo dos outros, por `trackKey(userId, source)`. */
+  remoteVideo: ReadonlyMap<string, MediaStream>;
   join: (channelId: string, serverId: string) => void;
   leave: () => void;
   toggleMuted: () => void;
   toggleDeafened: () => void;
+  toggleCamera: () => void;
+  startScreenShare: (hint: VoiceContentHint) => void;
+  stopScreenShare: () => void;
+  /** Camada de simulcast que um tile quer — o client só emite `voice:sfu:layer` quando ela muda. */
+  setVideoLayer: (userId: string, trackName: VoiceTrackSource, rid: SimulcastRid) => void;
   dismissError: () => void;
   retryBlockedPlayback: () => void;
 };
+
+const NO_LOCAL_VIDEO: LocalVideo = { camera: null, screen: null, screenHint: null };
 
 const VoiceContext = createContext<VoiceContextValue | null>(null);
 
@@ -55,6 +78,10 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
   const [speakingUserIds, setSpeakingUserIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [playbackBlocked, setPlaybackBlocked] = useState(false);
+  const [topology, setTopology] = useState<VoiceTopology>('mesh');
+  const [videoAvailable, setVideoAvailable] = useState(false);
+  const [localVideo, setLocalVideo] = useState<LocalVideo>(NO_LOCAL_VIDEO);
+  const [remoteVideo, setRemoteVideo] = useState<ReadonlyMap<string, MediaStream>>(new Map());
 
   useEffect(() => {
     const offState = client.on('connection-state', (s) => {
@@ -79,6 +106,10 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
     });
     const offError = client.on('error', (message) => setError(message));
     const offBlocked = client.on('playback-blocked', () => setPlaybackBlocked(true));
+    const offTopology = client.on('topology', setTopology);
+    const offPolicy = client.on('video-policy', (policy) => setVideoAvailable(policy !== null));
+    const offLocalVideo = client.on('local-video', setLocalVideo);
+    const offRemoteVideo = client.on('remote-video', setRemoteVideo);
 
     return () => {
       offState();
@@ -88,6 +119,10 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       offEvicted();
       offError();
       offBlocked();
+      offTopology();
+      offPolicy();
+      offLocalVideo();
+      offRemoteVideo();
     };
   }, [client]);
 
@@ -116,6 +151,21 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
     [client],
   );
 
+  const toggleCamera = useCallback(
+    () => void client.setCameraEnabled(!client.getLocalVideo().camera),
+    [client],
+  );
+  const startScreenShare = useCallback(
+    (hint: VoiceContentHint) => void client.startScreenShare(hint),
+    [client],
+  );
+  const stopScreenShare = useCallback(() => client.stopScreenShare(), [client]);
+  const setVideoLayer = useCallback(
+    (userId: string, trackName: VoiceTrackSource, rid: SimulcastRid) =>
+      client.setVideoLayer(userId, trackName, rid),
+    [client],
+  );
+
   const dismissError = useCallback(() => setError(null), []);
   const retryBlockedPlayback = useCallback(() => {
     client.retryBlockedPlayback();
@@ -127,8 +177,21 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
   // client não sabe o `username`, só o backend sabe, então ele vem daqui.
   const selfId = client.getSelfId();
   const username = authState.status === 'signed-in' ? authState.user.username : '';
+  // As tracks do participante local saem das tracks locais — o servidor nunca
+  // manda `track-published` pra quem publicou.
   const participants = useMemo<VoiceParticipant[]>(() => {
     if (!activeChannelId || !selfId) return remoteParticipants;
+    const tracks: VoiceTrack[] = [];
+    if (localVideo.camera) tracks.push({ trackName: 'camera', source: 'camera', kind: 'video', rids: [] });
+    if (localVideo.screen) {
+      tracks.push({
+        trackName: 'screen',
+        source: 'screen',
+        kind: 'video',
+        contentHint: localVideo.screenHint ?? undefined,
+        rids: [],
+      });
+    }
     const self: VoiceParticipant = {
       socketId: '',
       userId: selfId,
@@ -136,9 +199,10 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       muted: selfState.muted,
       deafened: selfState.deafened,
       joinedAt: '',
+      tracks,
     };
     return [self, ...remoteParticipants];
-  }, [activeChannelId, selfId, username, selfState, remoteParticipants]);
+  }, [activeChannelId, selfId, username, selfState, remoteParticipants, localVideo]);
 
   const value = useMemo<VoiceContextValue>(
     () => ({
@@ -151,10 +215,20 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       speakingUserIds,
       error,
       playbackBlocked,
+      topology,
+      videoAvailable,
+      localCamera: localVideo.camera,
+      localScreen: localVideo.screen,
+      screenHint: localVideo.screenHint,
+      remoteVideo,
       join,
       leave,
       toggleMuted,
       toggleDeafened,
+      toggleCamera,
+      startScreenShare,
+      stopScreenShare,
+      setVideoLayer,
       dismissError,
       retryBlockedPlayback,
     }),
@@ -167,10 +241,18 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       speakingUserIds,
       error,
       playbackBlocked,
+      topology,
+      videoAvailable,
+      localVideo,
+      remoteVideo,
       join,
       leave,
       toggleMuted,
       toggleDeafened,
+      toggleCamera,
+      startScreenShare,
+      stopScreenShare,
+      setVideoLayer,
       dismissError,
       retryBlockedPlayback,
     ],

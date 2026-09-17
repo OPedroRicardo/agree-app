@@ -19,6 +19,9 @@
   --agree-danger: #e6a2a2;
   --agree-online: #5fbf7a;
   --agree-idle: #d9a441;
+  /* Fundo de um tile da chamada sem vídeo (atrás da foto) — variável própria
+     porque vai mudar independente das outras superfícies. */
+  --agree-voice-tile-bg: #171923;
 }
 
 @theme inline {

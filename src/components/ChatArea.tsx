@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { MessageCirclePlus, Send, Sparkles, Users } from 'lucide-react';
 import type { AgreeChannel, AgreeServer, ChatMessage } from '@/lib/types';
 import { Avatar, initialsOf } from './Avatar';
@@ -8,7 +8,8 @@ import { RelativeTime } from './RelativeTime';
  * Message list, composer and header for the active channel or DM. `dmMode`
  * reuses `channel` as a `{_id, name}` stand-in for the conversation and swaps
  * the channel/server-shaped header, empty states and placeholders for
- * conversation-shaped ones. Purely presentational.
+ * conversation-shaped ones. Purely presentational. `voiceView`, when given
+ * (a voice channel), replaces the message list and composer — the header stays.
  */
 export function ChatArea({
   server,
@@ -26,6 +27,7 @@ export function ChatArea({
   showMembers,
   onToggleMembers,
   onSend,
+  voiceView,
 }: {
   server: AgreeServer | null;
   channel: Pick<AgreeChannel, '_id' | 'name'> | null;
@@ -45,6 +47,8 @@ export function ChatArea({
   showMembers: boolean;
   onToggleMembers: () => void;
   onSend: (text: string) => void;
+  /** Call view for a voice channel, in place of the messages and the composer. */
+  voiceView?: ReactNode;
 }) {
   const [composer, setComposer] = useState('');
   const messagesRef = useRef<HTMLDivElement>(null);
@@ -122,141 +126,145 @@ export function ChatArea({
         )}
       </div>
 
-      <div ref={messagesRef} className="flex flex-1 flex-col gap-2.5 overflow-y-auto p-5" style={{ background: 'var(--agree-chat-bg)' }}>
-        {!dmMode && !server && (
-          <div className="m-auto text-[13px] text-neutral-500">
-            Crie ou selecione um servidor para conversar.
-          </div>
-        )}
-        {!dmMode && server && loadingChannels && (
-          <div className="m-auto text-[13px] text-neutral-500">Carregando canais…</div>
-        )}
-        {!dmMode && server && !loadingChannels && !channel && (
-          <div className="m-auto text-[13px] text-neutral-500">
-            Este servidor ainda não tem canais. Crie um pra começar.
-          </div>
-        )}
-        {dmMode && !channel && (
-          <div className="m-auto flex flex-col items-center gap-3 text-center" style={{ animation: 'agree-fade-up 0.3s ease both' }}>
-            <div
-              className="flex h-14 w-14 items-center justify-center rounded-full text-accent"
-              style={{
-                background: 'color-mix(in srgb, var(--agree-accent) 15%, transparent)',
-                animation: 'agree-float 3s ease-in-out infinite',
-              }}
-            >
-              <MessageCirclePlus size={24} />
-            </div>
-            <div className="text-[14px] font-medium text-text">Suas conversas estão ali do lado</div>
-            <div className="text-[12px] text-neutral-500">Escolha alguém na lista ou comece uma DM nova.</div>
-          </div>
-        )}
-        {channel && loading && (
-          <div className="m-auto text-[13px] text-neutral-500">Carregando histórico…</div>
-        )}
-        {channel && !loading && messages.length > 0 && hasMoreMessages && (
-          <button
-            type="button"
-            onClick={handleLoadMore}
-            disabled={loadingMoreMessages}
-            className="mx-auto rounded-md px-3 py-1.5 text-[12px] text-neutral-500 transition-all duration-150 hover:bg-accent/10 hover:text-text disabled:opacity-50"
-          >
-            {loadingMoreMessages ? 'Carregando…' : 'Carregar mensagens mais antigas'}
-          </button>
-        )}
-        {channel && !loading && messages.length === 0 && (
-          <div className="m-auto flex flex-col items-center gap-3 text-center" style={{ animation: 'agree-fade-up 0.3s ease both' }}>
-            <div
-              className="flex h-14 w-14 items-center justify-center rounded-full text-accent"
-              style={{
-                background: 'color-mix(in srgb, var(--agree-accent) 15%, transparent)',
-                animation: 'agree-float 3s ease-in-out infinite',
-              }}
-            >
-              <Sparkles size={24} />
-            </div>
-            <div className="text-[14px] font-medium text-text">
-              {dmMode ? `Ainda não rolou papo com ${channel.name}` : `#${channel.name} está esperando a primeira mensagem`}
-            </div>
-            <div className="text-[12px] text-neutral-500">Manda um oi pra quebrar o gelo.</div>
-          </div>
-        )}
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className="flex gap-3 rounded-md p-1.5 transition-all duration-150 hover:translate-x-0.5 hover:bg-white/[.03]"
-            style={{ animation: 'agree-fade-up 0.3s ease both' }}
-          >
-            <Avatar
-              seed={msg.senderUsername || msg.senderId}
-              avatarUrl={msg.senderAvatarUrl || undefined}
-              size={36}
-            />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-baseline gap-2">
-                <span className="text-[14px] font-semibold">
-                  {msg.senderUsername || initialsOf(msg.senderId)}
-                </span>
-                <RelativeTime iso={msg.createdAt} className="text-[11px] text-neutral-500" />
+      {voiceView ?? (
+        <>
+          <div ref={messagesRef} className="flex flex-1 flex-col gap-2.5 overflow-y-auto p-5" style={{ background: 'var(--agree-chat-bg)' }}>
+            {!dmMode && !server && (
+              <div className="m-auto text-[13px] text-neutral-500">
+                Crie ou selecione um servidor para conversar.
               </div>
-              <div className="wrap-break-word text-[14px] leading-relaxed">{msg.content}</div>
-            </div>
+            )}
+            {!dmMode && server && loadingChannels && (
+              <div className="m-auto text-[13px] text-neutral-500">Carregando canais…</div>
+            )}
+            {!dmMode && server && !loadingChannels && !channel && (
+              <div className="m-auto text-[13px] text-neutral-500">
+                Este servidor ainda não tem canais. Crie um pra começar.
+              </div>
+            )}
+            {dmMode && !channel && (
+              <div className="m-auto flex flex-col items-center gap-3 text-center" style={{ animation: 'agree-fade-up 0.3s ease both' }}>
+                <div
+                  className="flex h-14 w-14 items-center justify-center rounded-full text-accent"
+                  style={{
+                    background: 'color-mix(in srgb, var(--agree-accent) 15%, transparent)',
+                    animation: 'agree-float 3s ease-in-out infinite',
+                  }}
+                >
+                  <MessageCirclePlus size={24} />
+                </div>
+                <div className="text-[14px] font-medium text-text">Suas conversas estão ali do lado</div>
+                <div className="text-[12px] text-neutral-500">Escolha alguém na lista ou comece uma DM nova.</div>
+              </div>
+            )}
+            {channel && loading && (
+              <div className="m-auto text-[13px] text-neutral-500">Carregando histórico…</div>
+            )}
+            {channel && !loading && messages.length > 0 && hasMoreMessages && (
+              <button
+                type="button"
+                onClick={handleLoadMore}
+                disabled={loadingMoreMessages}
+                className="mx-auto rounded-md px-3 py-1.5 text-[12px] text-neutral-500 transition-all duration-150 hover:bg-accent/10 hover:text-text disabled:opacity-50"
+              >
+                {loadingMoreMessages ? 'Carregando…' : 'Carregar mensagens mais antigas'}
+              </button>
+            )}
+            {channel && !loading && messages.length === 0 && (
+              <div className="m-auto flex flex-col items-center gap-3 text-center" style={{ animation: 'agree-fade-up 0.3s ease both' }}>
+                <div
+                  className="flex h-14 w-14 items-center justify-center rounded-full text-accent"
+                  style={{
+                    background: 'color-mix(in srgb, var(--agree-accent) 15%, transparent)',
+                    animation: 'agree-float 3s ease-in-out infinite',
+                  }}
+                >
+                  <Sparkles size={24} />
+                </div>
+                <div className="text-[14px] font-medium text-text">
+                  {dmMode ? `Ainda não rolou papo com ${channel.name}` : `#${channel.name} está esperando a primeira mensagem`}
+                </div>
+                <div className="text-[12px] text-neutral-500">Manda um oi pra quebrar o gelo.</div>
+              </div>
+            )}
+            {messages.map((msg) => (
+              <div
+                key={msg.id}
+                className="flex gap-3 rounded-md p-1.5 transition-all duration-150 hover:translate-x-0.5 hover:bg-white/[.03]"
+                style={{ animation: 'agree-fade-up 0.3s ease both' }}
+              >
+                <Avatar
+                  seed={msg.senderUsername || msg.senderId}
+                  avatarUrl={msg.senderAvatarUrl || undefined}
+                  size={36}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-[14px] font-semibold">
+                      {msg.senderUsername || initialsOf(msg.senderId)}
+                    </span>
+                    <RelativeTime iso={msg.createdAt} className="text-[11px] text-neutral-500" />
+                  </div>
+                  <div className="wrap-break-word text-[14px] leading-relaxed">{msg.content}</div>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      {chatError && (
-        <div
-          className="mx-5 mb-2.5 flex items-center justify-between gap-3 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-[12px] text-danger"
-          style={{ animation: 'agree-fade-up 0.2s ease both' }}
-        >
-          <span>{chatError}</span>
-          <button
-            type="button"
-            onClick={onDismissChatError}
-            className="text-[11px] font-medium underline-offset-2 hover:underline"
+          {chatError && (
+            <div
+              className="mx-5 mb-2.5 flex items-center justify-between gap-3 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-[12px] text-danger"
+              style={{ animation: 'agree-fade-up 0.2s ease both' }}
+            >
+              <span>{chatError}</span>
+              <button
+                type="button"
+                onClick={onDismissChatError}
+                className="text-[11px] font-medium underline-offset-2 hover:underline"
+              >
+                Fechar
+              </button>
+            </div>
+          )}
+
+          <div
+            className="flex h-18 flex-none items-center gap-2.5"
+            style={{
+              background: 'var(--agree-bg)',
+              backdropFilter: 'blur(var(--agree-blur, 16px))',
+            }}
           >
-            Fechar
-          </button>
-        </div>
+            <input
+              type="text"
+              value={composer}
+              disabled={!channel}
+              onChange={(e) => setComposer(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSend();
+              }}
+              placeholder={
+                channel
+                  ? dmMode
+                    ? `Enviar mensagem para ${channel.name}`
+                    : `Enviar mensagem em #${channel.name}`
+                  : dmMode
+                    ? 'Selecione uma conversa'
+                    : 'Selecione um canal'
+              }
+              className="h-full flex-1 rounded-lg border-none bg-transparent pl-3 text-[14px] outline-none disabled:opacity-50"
+            />
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={!channel || !composer.trim()}
+              title="Enviar"
+              className="mr-3 flex h-10 w-10 flex-none items-center justify-center rounded-full border border-accent text-accent transition-all duration-150 hover:scale-105 hover:bg-accent/10 hover:shadow-[0_0_0_4px_rgba(145,132,217,0.15)] active:scale-90 disabled:opacity-40 disabled:hover:scale-100 disabled:hover:shadow-none"
+            >
+              <Send size={16} />
+            </button>
+          </div>
+        </>
       )}
-
-      <div
-        className="flex h-18 flex-none items-center gap-2.5"
-        style={{
-          background: 'var(--agree-bg)',
-          backdropFilter: 'blur(var(--agree-blur, 16px))',
-        }}
-      >
-        <input
-          type="text"
-          value={composer}
-          disabled={!channel}
-          onChange={(e) => setComposer(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') handleSend();
-          }}
-          placeholder={
-            channel
-              ? dmMode
-                ? `Enviar mensagem para ${channel.name}`
-                : `Enviar mensagem em #${channel.name}`
-              : dmMode
-                ? 'Selecione uma conversa'
-                : 'Selecione um canal'
-          }
-          className="h-full flex-1 rounded-lg border-none bg-transparent pl-3 text-[14px] outline-none disabled:opacity-50"
-        />
-        <button
-          type="button"
-          onClick={handleSend}
-          disabled={!channel || !composer.trim()}
-          title="Enviar"
-          className="mr-3 flex h-10 w-10 flex-none items-center justify-center rounded-full border border-accent text-accent transition-all duration-150 hover:scale-105 hover:bg-accent/10 hover:shadow-[0_0_0_4px_rgba(145,132,217,0.15)] active:scale-90 disabled:opacity-40 disabled:hover:scale-100 disabled:hover:shadow-none"
-        >
-          <Send size={16} />
-        </button>
-      </div>
     </div>
   );
 }

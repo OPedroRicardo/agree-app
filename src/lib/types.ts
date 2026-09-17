@@ -35,6 +35,26 @@ export type ChatMessage = {
   createdAt: string;
 };
 
+/** De onde vem uma track publicada no SFU — também é o nome dela lá (`trackName === source`). */
+export type VoiceTrackSource = 'mic' | 'camera' | 'screen' | 'screen-audio';
+
+/** Camadas de simulcast, da melhor pra pior. */
+export type SimulcastRid = 'f' | 'h' | 'q';
+
+/** Perfil de screenshare: nitidez (texto/código) ou fluidez (vídeo/jogo) — cada um tem sua ladder. */
+export type VoiceContentHint = 'detail' | 'motion';
+
+/** Uma track que um participante publica no SFU. */
+export type VoiceTrack = {
+  trackName: VoiceTrackSource;
+  source: VoiceTrackSource;
+  kind: 'audio' | 'video';
+  /** Só no `screen`. */
+  contentHint?: VoiceContentHint;
+  /** Camadas oferecidas, melhor primeiro. `[]` no áudio. */
+  rids: SimulcastRid[];
+};
+
 /** Um participante de um canal de voz — ver `docs/voice-client.md`. */
 export type VoiceParticipant = {
   socketId: string;
@@ -43,6 +63,8 @@ export type VoiceParticipant = {
   muted: boolean;
   deafened: boolean;
   joinedAt: string;
+  /** O que ele publica no SFU; sempre `[]` no mesh. */
+  tracks: VoiceTrack[];
 };
 
 export type VoiceIceServer = {
@@ -51,15 +73,41 @@ export type VoiceIceServer = {
   credential?: string;
 };
 
+export type VoiceTopology = 'mesh' | 'sfu';
+
+/** Uma camada de simulcast, já no formato de `sendEncodings`. */
+export type SimulcastEncoding = {
+  rid: SimulcastRid;
+  maxBitrate: number;
+  maxFramerate: number;
+  scaleResolutionDownBy: number;
+};
+
+/** Constraints de captura + as camadas a codificar a partir dela (relativas ao capturado). */
+export type SimulcastProfile = {
+  capture: { width: number; height: number; frameRate: number };
+  encodings: SimulcastEncoding[];
+};
+
+export type VideoProfileName = 'camera' | 'screenDetail' | 'screenMotion';
+
+/** Política de vídeo do servidor: o publish é recusado se a offer fugir dela. */
+export type VoiceVideoPolicy = {
+  codecs: string[];
+  profiles: Record<VideoProfileName, SimulcastProfile>;
+};
+
 /** Ack de `voice:join`. */
 export type VoiceJoinAck = {
   channelId: string;
   selfId: string;
   socketId: string;
-  topology: 'mesh' | 'sfu';
+  topology: VoiceTopology;
   participants: VoiceParticipant[];
   iceServers: VoiceIceServer[];
   bitrate: { audio: { maxBitrate: number } };
+  /** `null` = backend sem SFU: sem vídeo, e a sala enche no limite do mesh. */
+  video: VoiceVideoPolicy | null;
 };
 
 /** A Mongo `User`, as exposed by `GET /users` — public fields only. */
