@@ -1,6 +1,6 @@
 import type { Socket } from 'socket.io-client';
 import { createVoiceSocket } from './socket';
-import { getVoiceSettings, subscribeVoiceSettings, type VoiceSettings } from './voice-settings';
+import { getVoiceSettings, setVoiceSettings, subscribeVoiceSettings, type VoiceSettings } from './voice-settings';
 import { playVoiceSound } from './voice-sounds';
 import { canShareScreen, clampRid, profileFor, restrictCodecs, trackKey } from './voice-media';
 import { describeNegotiated, describeSdp, describeTransceivers, sfuLog, watchSfuStats } from './voice-debug';
@@ -236,10 +236,11 @@ export class VoiceClient {
     this.setConnectionState('connecting');
 
     try {
+      await requestMicrophonePermission();
       await this.openInputPipeline();
     } catch (err) {
       this.setConnectionState('error');
-      this.emit('error', err instanceof Error ? err.message : 'Não foi possível acessar o microfone.');
+      this.emit('error', describeMicrophoneError(err));
       this.channelId = null;
       return;
     }
@@ -358,15 +359,26 @@ export class VoiceClient {
     const s = getVoiceSettings();
     this.settings = s;
 
-    this.rawInputStream = await navigator.mediaDevices.getUserMedia({
+    const constraints = (deviceId: string | null): MediaStreamConstraints => ({
       audio: {
-        deviceId: s.inputDeviceId ? { exact: s.inputDeviceId } : undefined,
+        deviceId: deviceId ? { exact: deviceId } : undefined,
         echoCancellation: s.echoCancellation,
         noiseSuppression: s.noiseSuppression,
         autoGainControl: s.autoGainControl,
       },
       video: false,
     });
+
+    try {
+      this.rawInputStream = await navigator.mediaDevices.getUserMedia(constraints(s.inputDeviceId));
+    } catch (err) {
+      // O microfone salvo pode ter sido desconectado (ou o id mudou depois de
+      // uma reinstalação): em vez de falhar a entrada na chamada, cai pro
+      // padrão do sistema e esquece a escolha, pra não repetir na próxima.
+      if (!s.inputDeviceId || !isMissingDeviceError(err)) throw err;
+      setVoiceSettings({ inputDeviceId: null });
+      this.rawInputStream = await navigator.mediaDevices.getUserMedia(constraints(null));
+    }
 
     this.audioCtx = new AudioContext();
     const source = this.audioCtx.createMediaStreamSource(this.rawInputStream);
@@ -397,7 +409,7 @@ export class VoiceClient {
     try {
       await this.openInputPipeline();
     } catch (err) {
-      this.emit('error', err instanceof Error ? err.message : 'Não foi possível trocar o microfone.');
+      this.emit('error', describeMicrophoneError(err, 'Não foi possível trocar o microfone.'));
       return;
     }
 
@@ -1592,3 +1604,46 @@ function captureErrorMessage(err: unknown): string {
 }
 
 export type { VoiceIceServer, VoiceJoinAck, VoiceParticipant };
+
+/**
+ * Pede a permissão de microfone antes de qualquer outra coisa, a cada entrada
+ * na chamada. Se a Permissions API disser que já está concedida, não abre
+ * nada; senão faz um `getUserMedia` mínimo (só `audio: true`, sem escolher
+ * dispositivo) para o prompt do navegador/WebView aparecer — com o `deviceId`
+ * exato de um mic que não existe mais, alguns engines falham antes de sequer
+ * perguntar. A stream é fechada na hora; quem grava é o pipeline de verdade.
+ */
+async function requestMicrophonePermission(): Promise<void> {
+  try {
+    // `'microphone'` não está no tipo `PermissionName` de todos os `lib.dom`.
+    const status = await navigator.permissions?.query({ name: 'microphone' as PermissionName });
+    if (status?.state === 'granted') return;
+  } catch {
+    // Permissions API indisponível (ou sem suporte a 'microphone'): pede direto.
+  }
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+  for (const track of stream.getTracks()) track.stop();
+}
+
+/** `getUserMedia` falhou porque o dispositivo pedido não existe — e não por falta de permissão. */
+function isMissingDeviceError(err: unknown): boolean {
+  return err instanceof DOMException && (err.name === 'OverconstrainedError' || err.name === 'NotFoundError');
+}
+
+/** Mensagem em português para as falhas mais comuns de `getUserMedia`, em vez do texto cru da `DOMException`. */
+function describeMicrophoneError(err: unknown, fallback = 'Não foi possível acessar o microfone.'): string {
+  if (err instanceof DOMException) {
+    switch (err.name) {
+      case 'NotAllowedError':
+      case 'SecurityError':
+        return 'Permissão de microfone negada. Libere o microfone para o Agree nas configurações do sistema ou do navegador e tente de novo.';
+      case 'NotFoundError':
+      case 'OverconstrainedError':
+        return 'Nenhum microfone encontrado. Conecte um e tente de novo.';
+      case 'NotReadableError':
+      case 'AbortError':
+        return 'O microfone está em uso por outro aplicativo ou não respondeu.';
+    }
+  }
+  return err instanceof Error && err.message ? err.message : fallback;
+}
