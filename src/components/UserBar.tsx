@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Headphones, HeadphoneOff, Mic, MicOff, Settings } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useVoiceCall } from '@/lib/voice-context';
@@ -14,6 +14,8 @@ export function UserBar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const { muted, deafened, toggleMuted, toggleDeafened } = useVoiceCall();
 
   const [openMenu, setOpenMenu] = useState<'audioinput' | 'audiooutput' | null>(null);
+  const inputAnchorRef = useRef<HTMLDivElement>(null);
+  const outputAnchorRef = useRef<HTMLDivElement>(null);
   const [inputDeviceId, setInputDeviceId] = useState(getVoiceSettings().inputDeviceId);
   const [outputDeviceId, setOutputDeviceId] = useState(getVoiceSettings().outputDeviceId);
 
@@ -33,7 +35,7 @@ export function UserBar({ onOpenSettings }: { onOpenSettings: () => void }) {
         <div className="text-[11px] text-neutral-400">Online</div>
       </div>
 
-      <div className="relative flex items-center">
+      <div ref={inputAnchorRef} className="relative flex items-center">
         <button
           type="button"
           title={muted ? 'Ativar microfone' : 'Silenciar microfone'}
@@ -55,6 +57,7 @@ export function UserBar({ onOpenSettings }: { onOpenSettings: () => void }) {
         {openMenu === 'audioinput' && (
           <DeviceMenu
             kind="audioinput"
+            anchorRef={inputAnchorRef}
             selectedDeviceId={inputDeviceId}
             onSelect={(deviceId) => setVoiceSettings({ inputDeviceId: deviceId })}
             onClose={() => setOpenMenu(null)}
@@ -62,7 +65,7 @@ export function UserBar({ onOpenSettings }: { onOpenSettings: () => void }) {
         )}
       </div>
 
-      <div className="relative flex items-center">
+      <div ref={outputAnchorRef} className="relative flex items-center">
         <button
           type="button"
           title={deafened ? 'Reativar áudio' : 'Ensurdecer (muta mic e saída)'}
@@ -84,6 +87,7 @@ export function UserBar({ onOpenSettings }: { onOpenSettings: () => void }) {
         {openMenu === 'audiooutput' && (
           <DeviceMenu
             kind="audiooutput"
+            anchorRef={outputAnchorRef}
             selectedDeviceId={outputDeviceId}
             onSelect={(deviceId) => setVoiceSettings({ outputDeviceId: deviceId })}
             onClose={() => setOpenMenu(null)}

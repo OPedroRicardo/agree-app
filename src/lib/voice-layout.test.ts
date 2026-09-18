@@ -109,6 +109,7 @@ describe('buildVoiceTiles', () => {
     socketId: `s-${userId}`,
     userId,
     username: userId,
+    serverId: 'srv',
     muted: false,
     deafened: false,
     joinedAt: '',

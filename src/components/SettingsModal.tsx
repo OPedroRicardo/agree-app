@@ -1,6 +1,8 @@
 import { TransitionEvent, useEffect, useRef, useState } from 'react';
 import { LogOut, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { IMPLICIT_SHORTCUTS, keyLabels, SHORTCUTS } from '@/lib/shortcuts';
+import { useEscapeKey } from '@/lib/use-escape-key';
 import {
   clearCustomCss,
   getCurrentThemeVarValue,
@@ -26,17 +28,33 @@ import {
 } from '@/lib/voice-settings';
 import { Avatar } from './Avatar';
 
-type SettingsTab = 'perfil' | 'tema' | 'voz';
+export type SettingsTab = 'perfil' | 'tema' | 'voz' | 'atalhos';
 
-/** Modal de Configurações com abas "Perfil" (somente leitura) e "Tema". Segue o mesmo padrão de fade/scale do {@link CreateServerModal}. */
-export function SettingsModal({ onClose }: { onClose: () => void }) {
+const TABS: { id: SettingsTab; label: string }[] = [
+  { id: 'perfil', label: 'Perfil' },
+  { id: 'voz', label: 'Voz' },
+  { id: 'tema', label: 'Tema' },
+  { id: 'atalhos', label: 'Atalhos' },
+];
+
+/** Modal de Configurações com abas "Perfil" (somente leitura), "Voz", "Tema" e "Atalhos". Segue o mesmo padrão de fade/scale do {@link CreateServerModal}. */
+export function SettingsModal({
+  onClose,
+  initialTab = 'perfil',
+}: {
+  onClose: () => void;
+  /** Aba aberta de cara — o atalho Ctrl+/ abre direto em "Atalhos". */
+  initialTab?: SettingsTab;
+}) {
   const [visible, setVisible] = useState(false);
-  const [activeTab, setActiveTab] = useState<SettingsTab>('perfil');
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
 
   useEffect(() => {
     const id = requestAnimationFrame(() => setVisible(true));
     return () => cancelAnimationFrame(id);
   }, []);
+
+  useEscapeKey(() => setVisible(false));
 
   /** Só desmonta quando a transição de saída do backdrop realmente termina — sem timeout fixo. */
   function handleBackdropTransitionEnd(e: TransitionEvent) {
@@ -70,9 +88,9 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           }}
         >
           <div className="mb-3 px-2 text-[16px] font-semibold">Configurações</div>
-          <TabButton label="Perfil" active={activeTab === 'perfil'} onClick={() => setActiveTab('perfil')} />
-          <TabButton label="Voz" active={activeTab === 'voz'} onClick={() => setActiveTab('voz')} />
-          <TabButton label="Tema" active={activeTab === 'tema'} onClick={() => setActiveTab('tema')} />
+          {TABS.map((tab) => (
+            <TabButton key={tab.id} label={tab.label} active={activeTab === tab.id} onClick={() => setActiveTab(tab.id)} />
+          ))}
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col gap-4 p-6">
@@ -88,7 +106,10 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-            {activeTab === 'perfil' ? <ProfileTab /> : activeTab === 'voz' ? <VoiceTab /> : <ThemeTab />}
+            {activeTab === 'perfil' && <ProfileTab />}
+            {activeTab === 'voz' && <VoiceTab />}
+            {activeTab === 'tema' && <ThemeTab />}
+            {activeTab === 'atalhos' && <ShortcutsTab />}
           </div>
         </div>
       </div>
@@ -139,6 +160,39 @@ function ProfileTab() {
           Sair da conta
         </button>
       </div>
+    </div>
+  );
+}
+
+/** Aba "Atalhos": a lista de `src/lib/shortcuts.ts`, agrupada — somente leitura, sem rebind por enquanto. */
+function ShortcutsTab() {
+  const groups = ['Navegação', 'Voz', 'App'] as const;
+  const rows = [...SHORTCUTS, ...IMPLICIT_SHORTCUTS];
+
+  return (
+    <div className="flex flex-col gap-5 py-1">
+      {groups.map((group) => (
+        <section key={group} className="flex flex-col gap-1.5">
+          <div className="text-[13px] font-semibold text-neutral-400">{group}</div>
+          {rows
+            .filter((row) => row.group === group)
+            .map((row) => (
+              <div key={row.label} className="flex items-center gap-3 rounded-md px-2 py-1.5 text-[13px] hover:bg-bg/30">
+                <span className="min-w-0 flex-1 text-neutral-300">{row.label}</span>
+                <span className="flex flex-none gap-1">
+                  {keyLabels(row.keys).map((key, i) => (
+                    <kbd
+                      key={i}
+                      className="rounded border border-divider bg-bg/60 px-1.5 py-0.5 font-mono text-[11px] text-neutral-400"
+                    >
+                      {key}
+                    </kbd>
+                  ))}
+                </span>
+              </div>
+            ))}
+        </section>
+      ))}
     </div>
   );
 }
@@ -381,7 +435,7 @@ function ToggleField({
       >
         <span
           className={`absolute top-0.5 h-4.5 w-4.5 rounded-full bg-white transition-transform duration-150 ${
-            checked ? 'translate-x-[19px]' : 'translate-x-0.5'
+            checked ? 'translate-x-0' : 'translate-x-[-18px]'
           }`}
         />
       </button>

@@ -1,5 +1,6 @@
 import { FormEvent, TransitionEvent, useEffect, useState } from 'react';
 import { X } from 'lucide-react';
+import { useEscapeKey } from '@/lib/use-escape-key';
 
 /** Modal form for `POST /server`, with its own fade/scale open+close transition. */
 export function CreateServerModal({
@@ -26,6 +27,8 @@ export function CreateServerModal({
     const id = requestAnimationFrame(() => setVisible(true));
     return () => cancelAnimationFrame(id);
   }, []);
+
+  useEscapeKey(() => setVisible(false));
 
   /** Only unmounts once the backdrop's own fade-out transition actually ends — no hardcoded duration to keep in sync with the CSS. */
   function handleBackdropTransitionEnd(e: TransitionEvent) {

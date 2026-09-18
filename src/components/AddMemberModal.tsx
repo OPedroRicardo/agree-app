@@ -1,9 +1,14 @@
 import { TransitionEvent, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+import { useEscapeKey } from '@/lib/use-escape-key';
 import type { AgreeUser } from '@/lib/types';
 import { Avatar } from './Avatar';
 
-/** Modal listing users not yet in the server, for the owner to add one. Same chrome as {@link NewDmModal}. */
+/**
+ * Modal listing users not yet in the server, for the owner to add one. Same chrome as {@link NewDmModal}.
+ * Portaled to `body`: the drawer's `transform`/`backdrop-filter` would otherwise trap the `fixed` backdrop inside it.
+ */
 export function AddMemberModal({
   users,
   loading,
@@ -25,11 +30,13 @@ export function AddMemberModal({
     return () => cancelAnimationFrame(id);
   }, []);
 
+  useEscapeKey(() => setVisible(false));
+
   function handleBackdropTransitionEnd(e: TransitionEvent) {
     if (e.target === e.currentTarget && !visible) onClose();
   }
 
-  return (
+  return createPortal(
     <div
       className={`fixed inset-0 z-20 flex items-center justify-center p-4 transition-opacity duration-150 ease-out ${
         visible ? 'opacity-100' : 'opacity-0'
@@ -86,6 +93,7 @@ export function AddMemberModal({
           ))}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

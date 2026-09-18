@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Socket } from 'socket.io-client';
 import { useAuth } from '@/lib/auth-context';
 import {
   ApiError,
   createChannel,
   createServer,
+  createServerEmoji,
+  deleteServerEmoji,
   listChannelMessages,
   listChannels,
   listConversationMessages,
@@ -16,9 +18,11 @@ import { createChatSocket } from '@/lib/socket';
 import { describeChatError, type ChatErrorPayload } from '@/lib/chat-errors';
 import { conversationLabel } from '@/lib/dm';
 import { VoiceProvider, useVoiceCall } from '@/lib/voice-context';
+import { useKeyboardShortcuts } from '@/lib/use-keyboard-shortcuts';
 import type {
   AgreeChannel,
   AgreeConversation,
+  AgreeCustomEmoji,
   AgreeServer,
   AgreeUser,
   ChatMessage,
@@ -29,9 +33,11 @@ import { DmSidebar } from './DmSidebar';
 import { NewDmModal } from './NewDmModal';
 import { ChatArea } from './ChatArea';
 import { MembersPanel } from './MembersPanel';
+import { CommandPalette, type PaletteItem } from './CommandPalette';
 import { CreateServerModal } from './CreateServerModal';
 import { CreateChannelModal } from './CreateChannelModal';
-import { SettingsModal } from './SettingsModal';
+import { ServerEmojisModal } from './ServerEmojisModal';
+import { SettingsModal, type SettingsTab } from './SettingsModal';
 import { UserBar } from './UserBar';
 import { VoiceStatusBar } from './VoiceStatusBar';
 import { VoiceView } from './VoiceView';
@@ -98,7 +104,11 @@ function AppShellContent() {
   const [showMembers, setShowMembers] = useState(true);
   const [showCreateServerModal, setShowCreateServerModal] = useState(false);
   const [showCreateChannelModal, setShowCreateChannelModal] = useState(false);
+  const [showServerEmojisModal, setShowServerEmojisModal] = useState(false);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  /** Aba com que a modal de Configurações abre — Ctrl+/ abre direto em "Atalhos". */
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('perfil');
   const [connected, setConnected] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
 
@@ -127,6 +137,32 @@ function AppShellContent() {
   useEffect(() => {
     activeChannelIdRef.current = activeChannelId;
   }, [activeChannelId]);
+
+  // Presença de voz do servidor aberto (quem está em cada canal), mesmo sem
+  // estar em chamada — continua observando o mesmo servidor na view de DMs.
+  const { watchServer } = voice;
+  useEffect(() => {
+    watchServer(activeServerId);
+  }, [activeServerId, watchServer]);
+
+  /**
+   * Emojis `:nome:` disponíveis no chat: os do servidor aberto; em DM, a união
+   * de todos os servidores do usuário (primeiro nome ganha), já que uma DM não
+   * pertence a servidor nenhum.
+   */
+  const customEmojis = useMemo<AgreeCustomEmoji[]>(() => {
+    if (view === 'servers') return activeServer?.emojis ?? [];
+    const seen = new Set<string>();
+    const all: AgreeCustomEmoji[] = [];
+    for (const server of servers) {
+      for (const emoji of server.emojis ?? []) {
+        if (seen.has(emoji.name)) continue;
+        seen.add(emoji.name);
+        all.push(emoji);
+      }
+    }
+    return all;
+  }, [view, activeServer, servers]);
 
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
@@ -334,9 +370,9 @@ function AppShellContent() {
     };
   }, [signedIn, activeChannelId, handleApiError, addMessage]);
 
-  /** Loads the caller's dm/group conversations whenever the DM view is opened. */
+  /** Loads the caller's dm/group conversations whenever the DM view (or the command palette, which searches them) is opened. */
   useEffect(() => {
-    if (!signedIn || view !== 'dms') return;
+    if (!signedIn || (view !== 'dms' && !showCommandPalette)) return;
     let cancelled = false;
     setLoadingConversations(true);
     listConversations()
@@ -352,7 +388,7 @@ function AppShellContent() {
     return () => {
       cancelled = true;
     };
-  }, [signedIn, view, handleApiError]);
+  }, [signedIn, view, showCommandPalette, handleApiError]);
 
   /** Loads history for an existing DM/group conversation. A `draftDmPeer` (no conversation yet) has none to load. */
   useEffect(() => {
@@ -543,6 +579,122 @@ function AppShellContent() {
     [activeServerId],
   );
 
+  /** Substitui `emojis` de um servidor na lista local — a fonte do picker e do render é o próprio `servers`. */
+  const patchServerEmojis = useCallback(
+    (serverId: string, update: (emojis: AgreeCustomEmoji[]) => AgreeCustomEmoji[]) => {
+      setServers((prev) =>
+        prev.map((server) =>
+          server._id === serverId ? { ...server, emojis: update(server.emojis ?? []) } : server,
+        ),
+      );
+    },
+    [],
+  );
+
+  /** `POST /server/:serverId/emojis` no servidor aberto e anexa o emoji criado localmente. */
+  const handleCreateEmoji = useCallback(
+    async (data: { name: string; url: string }) => {
+      if (!activeServerId) return;
+      try {
+        const created = await createServerEmoji(activeServerId, data);
+        patchServerEmojis(activeServerId, (emojis) => [...emojis, created]);
+      } catch (err) {
+        handleApiError(err);
+        throw err;
+      }
+    },
+    [activeServerId, patchServerEmojis, handleApiError],
+  );
+
+  /** `DELETE /server/:serverId/emojis/:emojiId` e remove localmente. */
+  const handleDeleteEmoji = useCallback(
+    async (emoji: AgreeCustomEmoji) => {
+      if (!activeServerId) return;
+      try {
+        await deleteServerEmoji(activeServerId, emoji._id);
+        patchServerEmojis(activeServerId, (emojis) => emojis.filter((e) => e._id !== emoji._id));
+      } catch (err) {
+        handleApiError(err);
+        throw err;
+      }
+    },
+    [activeServerId, patchServerEmojis, handleApiError],
+  );
+
+  /** Item da paleta (Ctrl+K) → mesma navegação dos cliques na sidebar. */
+  const handlePalettePick = useCallback(
+    (item: PaletteItem) => {
+      if (item.kind === 'server') {
+        setView('servers');
+        setActiveServerId(item.id);
+      } else if (item.kind === 'channel') {
+        setView('servers');
+        handleSelectChannel(item.id);
+      } else {
+        setView('dms');
+        setDraftDmPeer(null);
+        setActiveConversationId(item.id);
+      }
+    },
+    [handleSelectChannel],
+  );
+
+  const anyModalOpen =
+    showCreateServerModal ||
+    showCreateChannelModal ||
+    showNewDmModal ||
+    showSettings ||
+    showServerEmojisModal ||
+    showCommandPalette;
+
+  /** Próximo/anterior de uma lista, com volta ao início — o índice `-1` (nada selecionado) cai no primeiro item. */
+  function cycle<T>(list: T[], index: number, delta: number): T | undefined {
+    if (list.length === 0) return undefined;
+    return list[(index + delta + list.length) % list.length];
+  }
+
+  /** Alt+↑/↓: só canais de texto, e sem `handleSelectChannel` — passar por um canal de voz não pode entrar na chamada. Na view de DMs, cicla as conversas. */
+  function stepChannel(delta: number) {
+    if (view === 'dms') {
+      const next = cycle(conversations, conversations.findIndex((c) => c.id === activeConversationId), delta);
+      if (!next) return;
+      setDraftDmPeer(null);
+      setActiveConversationId(next.id);
+      return;
+    }
+    const textChannels = channels.filter((c) => c.type === 'text');
+    const next = cycle(textChannels, textChannels.findIndex((c) => c._id === activeChannelId), delta);
+    if (next) setActiveChannelId(next._id);
+  }
+
+  function stepServer(delta: number) {
+    const next = cycle(servers, view === 'servers' ? servers.findIndex((s) => s._id === activeServerId) : -1, delta);
+    if (!next) return;
+    setView('servers');
+    setActiveServerId(next._id);
+  }
+
+  useKeyboardShortcuts(
+    {
+      commandPalette: () => setShowCommandPalette(true),
+      prevChannel: () => stepChannel(-1),
+      nextChannel: () => stepChannel(1),
+      prevServer: () => stepServer(-1),
+      nextServer: () => stepServer(1),
+      openSettings: () => {
+        setSettingsTab('perfil');
+        setShowSettings(true);
+      },
+      showShortcuts: () => {
+        setSettingsTab('atalhos');
+        setShowSettings(true);
+      },
+      toggleMute: voice.toggleMuted,
+      toggleDeafen: voice.toggleDeafened,
+    },
+    { typeToFocus: !anyModalOpen },
+  );
+
   return (
     <div
       className="relative flex h-screen w-full overflow-hidden"
@@ -570,8 +722,10 @@ function AppShellContent() {
               channels={channels}
               activeChannelId={activeChannelId}
               activeVoiceChannelId={voice.activeChannelId}
+              presenceByChannel={voice.presenceByChannel}
               onSelectChannel={handleSelectChannel}
               onOpenCreateChannel={() => setShowCreateChannelModal(true)}
+              onOpenEmojis={() => setShowServerEmojisModal(true)}
             />
           ) : (
             selfId && (
@@ -596,7 +750,12 @@ function AppShellContent() {
             }
           />
         )}
-        <UserBar onOpenSettings={() => setShowSettings(true)} />
+        <UserBar
+          onOpenSettings={() => {
+            setSettingsTab('perfil');
+            setShowSettings(true);
+          }}
+        />
       </div>
 
       {view === 'servers' ? (
@@ -620,6 +779,8 @@ function AppShellContent() {
               <VoiceView channel={activeChannel} serverId={activeServerId} />
             ) : undefined
           }
+          customEmojis={customEmojis}
+          onManageEmojis={activeServer ? () => setShowServerEmojisModal(true) : undefined}
         />
       ) : (
         <ChatArea
@@ -638,6 +799,7 @@ function AppShellContent() {
           showMembers={showMembers}
           onToggleMembers={() => setShowMembers((v) => !v)}
           onSend={handleSendDm}
+          customEmojis={customEmojis}
         />
       )}
 
@@ -669,7 +831,30 @@ function AppShellContent() {
         />
       )}
 
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {showServerEmojisModal && activeServer && selfId && (
+        <ServerEmojisModal
+          server={activeServer}
+          selfId={selfId}
+          onClose={() => setShowServerEmojisModal(false)}
+          onCreate={handleCreateEmoji}
+          onDelete={handleDeleteEmoji}
+        />
+      )}
+
+      {showCommandPalette && selfId && (
+        <CommandPalette
+          servers={servers}
+          activeServer={activeServer}
+          channels={channels}
+          conversations={conversations}
+          loadingConversations={loadingConversations}
+          selfId={selfId}
+          onClose={() => setShowCommandPalette(false)}
+          onPick={handlePalettePick}
+        />
+      )}
+
+      {showSettings && <SettingsModal initialTab={settingsTab} onClose={() => setShowSettings(false)} />}
     </div>
   );
 }

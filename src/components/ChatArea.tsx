@@ -1,7 +1,12 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { MessageCirclePlus, Send, Sparkles, Users } from 'lucide-react';
-import type { AgreeChannel, AgreeServer, ChatMessage } from '@/lib/types';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { MessageCirclePlus, Send, Smile, Sparkles, Users } from 'lucide-react';
+import type { AgreeChannel, AgreeCustomEmoji, AgreeServer, ChatMessage } from '@/lib/types';
+import { replaceShortcodes, SHORTCODE_PREFIX_REGEX } from '@/lib/emoji';
+import { useEscapeKey } from '@/lib/use-escape-key';
+import { COMPOSER_INPUT_ID } from '@/lib/use-keyboard-shortcuts';
 import { Avatar, initialsOf } from './Avatar';
+import { EmojiPicker, EmojiSuggestions, searchEmojis, type EmojiSuggestion } from './EmojiPicker';
+import { MessageContent } from './MessageContent';
 import { RelativeTime } from './RelativeTime';
 
 /**
@@ -28,6 +33,8 @@ export function ChatArea({
   onToggleMembers,
   onSend,
   voiceView,
+  customEmojis,
+  onManageEmojis,
 }: {
   server: AgreeServer | null;
   channel: Pick<AgreeChannel, '_id' | 'name'> | null;
@@ -49,8 +56,21 @@ export function ChatArea({
   onSend: (text: string) => void;
   /** Call view for a voice channel, in place of the messages and the composer. */
   voiceView?: ReactNode;
+  /** Emojis `:nome:` resolvíveis aqui — os do servidor aberto, ou a união de todos em DM. */
+  customEmojis: AgreeCustomEmoji[];
+  /** Abre a gestão de emojis do servidor; ausente em DM. */
+  onManageEmojis?: () => void;
 }) {
   const [composer, setComposer] = useState('');
+  /** Posição do cursor no composer, para o autocomplete olhar só o que vem antes dele e para inserir emoji no lugar certo. */
+  const [caret, setCaret] = useState(0);
+  const [showPicker, setShowPicker] = useState(false);
+  const [suggestionIndex, setSuggestionIndex] = useState(0);
+  /** O `:nome` que o usuário mandou fechar com Esc — some até ele digitar outra coisa. */
+  const [dismissedQuery, setDismissedQuery] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  /** Cursor a aplicar depois que o React pintar o `composer` novo (inserção de emoji). */
+  const pendingCaretRef = useRef<number | null>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
   /** Set right before requesting an older page, so the effect below restores the scroll offset instead of jumping to the bottom like it does for a new message. */
   const scrollHeightBeforeLoadRef = useRef<number | null>(null);
@@ -77,11 +97,73 @@ export function ChatArea({
     return () => clearTimeout(timer);
   }, [chatError, onDismissChatError]);
 
+  // O `:nom` logo antes do cursor, se houver — é o que alimenta as sugestões.
+  const shortcodeMatch = useMemo(() => SHORTCODE_PREFIX_REGEX.exec(composer.slice(0, caret)), [composer, caret]);
+  const suggestions = useMemo(
+    () => (shortcodeMatch && shortcodeMatch[0] !== dismissedQuery ? searchEmojis(shortcodeMatch[1], customEmojis) : []),
+    [shortcodeMatch, dismissedQuery, customEmojis],
+  );
+  const suggestionsOpen = suggestions.length > 0;
+
+  useEffect(() => setSuggestionIndex(0), [suggestions]);
+  useEscapeKey(() => setDismissedQuery(shortcodeMatch?.[0] ?? null), suggestionsOpen);
+
+  useEffect(() => {
+    if (pendingCaretRef.current === null) return;
+    const el = inputRef.current;
+    if (el) {
+      el.focus();
+      el.setSelectionRange(pendingCaretRef.current, pendingCaretRef.current);
+    }
+    pendingCaretRef.current = null;
+  }, [composer]);
+
+  /** Troca `[from, to)` do composer por `text` e deixa o cursor logo depois. */
+  function replaceRange(from: number, to: number, text: string) {
+    setComposer(composer.slice(0, from) + text + composer.slice(to));
+    const next = from + text.length;
+    setCaret(next);
+    pendingCaretRef.current = next;
+  }
+
+  function applySuggestion(suggestion: EmojiSuggestion) {
+    if (!shortcodeMatch) return;
+    replaceRange(caret - shortcodeMatch[0].length, caret, `${suggestion.insert} `);
+    setDismissedQuery(null);
+  }
+
+  function handlePickFromPicker(suggestion: EmojiSuggestion) {
+    replaceRange(caret, caret, suggestion.insert);
+    setShowPicker(false);
+  }
+
+  function handleComposerKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (suggestionsOpen && !e.altKey && !e.ctrlKey && !e.metaKey) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSuggestionIndex((i) => (i + 1) % suggestions.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSuggestionIndex((i) => (i - 1 + suggestions.length) % suggestions.length);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        applySuggestion(suggestions[suggestionIndex]);
+        return;
+      }
+    }
+    if (e.key === 'Enter') handleSend();
+  }
+
   function handleSend() {
     const text = composer.trim();
     if (!text || !channel) return;
-    onSend(text);
+    onSend(replaceShortcodes(text, customEmojis));
     setComposer('');
+    setCaret(0);
   }
 
   return (
@@ -205,7 +287,7 @@ export function ChatArea({
                     </span>
                     <RelativeTime iso={msg.createdAt} className="text-[11px] text-neutral-500" />
                   </div>
-                  <div className="wrap-break-word text-[14px] leading-relaxed">{msg.content}</div>
+                  <MessageContent text={msg.content} customEmojis={customEmojis} />
                 </div>
               </div>
             ))}
@@ -228,20 +310,47 @@ export function ChatArea({
           )}
 
           <div
-            className="flex h-18 flex-none items-center gap-2.5"
+            className="relative flex h-18 flex-none items-center gap-2.5"
             style={{
               background: 'var(--agree-bg)',
               backdropFilter: 'blur(var(--agree-blur, 16px))',
             }}
           >
+            {suggestionsOpen && (
+              <EmojiSuggestions
+                suggestions={suggestions}
+                activeIndex={suggestionIndex}
+                onPick={applySuggestion}
+                onHover={setSuggestionIndex}
+              />
+            )}
+            {showPicker && (
+              <EmojiPicker
+                customEmojis={customEmojis}
+                onPick={handlePickFromPicker}
+                onClose={() => setShowPicker(false)}
+                onManageEmojis={
+                  onManageEmojis &&
+                  (() => {
+                    setShowPicker(false);
+                    onManageEmojis();
+                  })
+                }
+              />
+            )}
             <input
+              ref={inputRef}
+              id={COMPOSER_INPUT_ID}
               type="text"
               value={composer}
               disabled={!channel}
-              onChange={(e) => setComposer(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleSend();
+              onChange={(e) => {
+                setComposer(e.target.value);
+                setCaret(e.target.selectionStart ?? e.target.value.length);
+                setDismissedQuery(null);
               }}
+              onSelect={(e) => setCaret(e.currentTarget.selectionStart ?? composer.length)}
+              onKeyDown={handleComposerKeyDown}
               placeholder={
                 channel
                   ? dmMode
@@ -253,6 +362,16 @@ export function ChatArea({
               }
               className="h-full flex-1 rounded-lg border-none bg-transparent pl-3 text-[14px] outline-none disabled:opacity-50"
             />
+            <button
+              type="button"
+              onClick={() => setShowPicker((v) => !v)}
+              disabled={!channel}
+              title="Emoji"
+              className="flex h-10 w-10 flex-none items-center justify-center rounded-full text-neutral-500 transition-all duration-150 hover:scale-105 hover:bg-accent/10 hover:text-text active:scale-90 disabled:opacity-40"
+              style={showPicker ? { color: 'var(--agree-accent)' } : undefined}
+            >
+              <Smile size={18} />
+            </button>
             <button
               type="button"
               onClick={handleSend}

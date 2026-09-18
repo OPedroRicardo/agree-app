@@ -1,5 +1,6 @@
 import { TransitionEvent, useEffect, useState } from 'react';
 import { X } from 'lucide-react';
+import { useEscapeKey } from '@/lib/use-escape-key';
 import type { AgreeUser } from '@/lib/types';
 import { Avatar } from './Avatar';
 
@@ -24,6 +25,8 @@ export function NewDmModal({
     const id = requestAnimationFrame(() => setVisible(true));
     return () => cancelAnimationFrame(id);
   }, []);
+
+  useEscapeKey(() => setVisible(false));
 
   /** Only unmounts once the backdrop's own fade-out transition actually ends — no hardcoded duration to keep in sync with the CSS. */
   function handleBackdropTransitionEnd(e: TransitionEvent) {

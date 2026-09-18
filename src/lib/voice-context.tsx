@@ -6,10 +6,12 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from 'react';
 import { useAuth } from './auth-context';
 import { VoiceClient, type LocalVideo } from './voice-client';
+import { VoicePresenceWatcher, type PresenceByChannel } from './voice-presence';
 import type {
   SimulcastRid,
   VoiceContentHint,
@@ -41,6 +43,10 @@ type VoiceContextValue = {
   screenHint: VoiceContentHint | null;
   /** Vídeo dos outros, por `trackKey(userId, source)`. */
   remoteVideo: ReadonlyMap<string, MediaStream>;
+  /** Quem está em cada canal de voz do servidor observado por `watchServer` — inclui a própria chamada, se for nesse servidor. */
+  presenceByChannel: PresenceByChannel;
+  /** Passa a observar a presença de voz de `serverId` (o servidor aberto na tela); `null` para nenhum. */
+  watchServer: (serverId: string | null) => void;
   join: (channelId: string, serverId: string) => void;
   leave: () => void;
   toggleMuted: () => void;
@@ -69,6 +75,10 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
   const clientRef = useRef<VoiceClient | null>(null);
   if (!clientRef.current) clientRef.current = new VoiceClient();
   const client = clientRef.current;
+
+  const watcherRef = useRef<VoicePresenceWatcher | null>(null);
+  if (!watcherRef.current) watcherRef.current = new VoicePresenceWatcher();
+  const watcher = watcherRef.current;
 
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
   const [activeServerId, setActiveServerId] = useState<string | null>(null);
@@ -128,6 +138,13 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
 
   // Sai da chamada se a página inteira desmontar (logout, fechar app).
   useEffect(() => () => void client.leave(), [client]);
+  useEffect(() => () => watcher.disconnect(), [watcher]);
+
+  const presenceByChannel = useSyncExternalStore(
+    useCallback((listener) => watcher.subscribe(listener), [watcher]),
+    () => watcher.getSnapshot(),
+  );
+  const watchServer = useCallback((serverId: string | null) => watcher.watch(serverId), [watcher]);
 
   const join = useCallback(
     (channelId: string, serverId: string) => {
@@ -196,13 +213,14 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       socketId: '',
       userId: selfId,
       username,
+      serverId: activeServerId ?? '',
       muted: selfState.muted,
       deafened: selfState.deafened,
       joinedAt: '',
       tracks,
     };
     return [self, ...remoteParticipants];
-  }, [activeChannelId, selfId, username, selfState, remoteParticipants, localVideo]);
+  }, [activeChannelId, activeServerId, selfId, username, selfState, remoteParticipants, localVideo]);
 
   const value = useMemo<VoiceContextValue>(
     () => ({
@@ -221,6 +239,8 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       localScreen: localVideo.screen,
       screenHint: localVideo.screenHint,
       remoteVideo,
+      presenceByChannel,
+      watchServer,
       join,
       leave,
       toggleMuted,
@@ -245,6 +265,8 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       videoAvailable,
       localVideo,
       remoteVideo,
+      presenceByChannel,
+      watchServer,
       join,
       leave,
       toggleMuted,

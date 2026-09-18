@@ -2,6 +2,7 @@ import { clearToken, getToken, setToken } from './token';
 import type {
   AgreeChannel,
   AgreeConversation,
+  AgreeCustomEmoji,
   AgreeServer,
   AgreeUser,
   ChatMessage,
@@ -162,6 +163,21 @@ export function addServerMember(serverId: string, userId: string) {
 /** `DELETE /server/:serverId/members/:userId`. Owner-only, and the owner can't remove themselves — the backend 400s that. */
 export function removeServerMember(serverId: string, userId: string) {
   return request<void>(`/server/${serverId}/members/${userId}`, {
+    method: 'DELETE',
+  });
+}
+
+/** `POST /server/:serverId/emojis`. Qualquer membro; nome duplicado no servidor → 400. */
+export function createServerEmoji(serverId: string, data: { name: string; url: string }) {
+  return request<AgreeCustomEmoji>(`/server/${serverId}/emojis`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+/** `DELETE /server/:serverId/emojis/:emojiId`. Só o dono do servidor ou quem cadastrou — o backend 403s os demais. */
+export function deleteServerEmoji(serverId: string, emojiId: string) {
+  return request<void>(`/server/${serverId}/emojis/${emojiId}`, {
     method: 'DELETE',
   });
 }

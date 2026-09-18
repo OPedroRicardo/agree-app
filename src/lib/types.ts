@@ -13,6 +13,17 @@ export type AgreeServer = {
   logoImg: string;
   bannerImage: string;
   ownerId?: string;
+  /** Emojis personalizados do servidor — ausente em documentos anteriores ao campo. */
+  emojis?: AgreeCustomEmoji[];
+};
+
+/** Um emoji personalizado embutido no `Server`. `name` é o que vai entre dois-pontos na mensagem (`:pepe:`); `url` é só um link, o backend não hospeda a imagem. */
+export type AgreeCustomEmoji = {
+  _id: string;
+  name: string;
+  url: string;
+  /** Quem cadastrou — só ele ou o dono do servidor podem remover. */
+  createdBy: string;
 };
 
 /** A channel embedded in a `Server` document. `_id` is the chat `channelId` used by the WS gateway and `/chat/:channelId`. */
@@ -60,6 +71,7 @@ export type VoiceParticipant = {
   socketId: string;
   userId: string;
   username: string;
+  serverId: string;
   muted: boolean;
   deafened: boolean;
   joinedAt: string;
@@ -108,6 +120,19 @@ export type VoiceJoinAck = {
   bitrate: { audio: { maxBitrate: number } };
   /** `null` = backend sem SFU: sem vídeo, e a sala enche no limite do mesh. */
   video: VoiceVideoPolicy | null;
+};
+
+/** Ack de `voice:watch` — roster de cada canal de voz do servidor, vazios inclusive. */
+export type VoiceWatchAck = {
+  serverId: string;
+  channels: Record<string, VoiceParticipant[]>;
+};
+
+/** Evento `voice:presence` — roster completo de um canal, para quem observa o servidor. */
+export type VoicePresenceEvent = {
+  serverId: string;
+  channelId: string;
+  participants: VoiceParticipant[];
 };
 
 /** A Mongo `User`, as exposed by `GET /users` — public fields only. */

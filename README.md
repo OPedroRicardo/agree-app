@@ -27,6 +27,8 @@ cp .env.example .env.local
 
 `VITE_API_URL` e `VITE_WS_URL` apontam para o backend (padrão `http://localhost:3000` para ambos — o gateway de chat compartilha a porta HTTP do Nest, não tem porta própria).
 
+`VITE_GIPHY_API_KEY` (opcional) liga o botão "Buscar GIF" no cadastro de emojis personalizados do servidor — chave grátis em [developers.giphy.com](https://developers.giphy.com). Sem ela o botão mostra um aviso e o cadastro segue só por URL.
+
 ## Rodando
 
 ```bash

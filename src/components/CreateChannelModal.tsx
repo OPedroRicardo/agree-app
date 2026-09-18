@@ -1,5 +1,6 @@
 import { FormEvent, TransitionEvent, useEffect, useState } from 'react';
 import { X } from 'lucide-react';
+import { useEscapeKey } from '@/lib/use-escape-key';
 import type { AgreeChannel } from '@/lib/types';
 
 /** Modal form for `POST /server/:serverId/channel`, mirrors {@link CreateServerModal}'s transition. */
@@ -20,6 +21,8 @@ export function CreateChannelModal({
     const id = requestAnimationFrame(() => setVisible(true));
     return () => cancelAnimationFrame(id);
   }, []);
+
+  useEscapeKey(() => setVisible(false));
 
   /** Só desmonta quando a transição de saída do backdrop realmente termina — sem timeout fixo. */
   function handleBackdropTransitionEnd(e: TransitionEvent) {
