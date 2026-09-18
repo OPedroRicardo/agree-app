@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { MessageCircle, Plus } from 'lucide-react';
 import type { AgreeServer } from '@/lib/types';
 import { HoverPlayImage } from './HoverPlayImage';
@@ -20,15 +20,33 @@ export function ServerRail({
   onOpenDms: () => void;
   onOpenCreate: () => void;
 }) {
+  const listRef = useRef<HTMLDivElement>(null);
+  /** Largura real da barra de rolagem da lista (0 quando ela não rola), medida em vez de reservada por CSS. */
+  const [gutter, setGutter] = useState(0);
+
+  // `scrollbar-gutter: stable` não é confiável com a scrollbar customizada
+  // (`::-webkit-scrollbar` em index.css): sem overflow o Chromium não
+  // reservava nada e os ícones ficavam 10px fora do eixo dos botões de DM e
+  // "+". Medir `offsetWidth - clientWidth` cobre os dois casos e também
+  // scrollbar de overlay, que ocupa 0.
+  useLayoutEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const measure = () => setGutter(el.offsetWidth - el.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [servers.length]);
+
   return (
     <div
       className="flex w-15 flex-none flex-col items-center gap-2.5 py-1.5"
       style={{ background: 'color-mix(in srgb, var(--agree-bg) var(--agree-glass-opacity, 45%), transparent)' }}
     >
-      {/* Reserves the same width as the list's scrollbar gutter below (10px,
-          see index.css) so this button stays centered with the server icons
-          whether or not the list is actually scrollable. */}
-      <div className="flex w-full justify-center pr-2.5">
+      {/* Mesmo recuo da barra de rolagem da lista abaixo, para o botão ficar
+          no eixo dos ícones de servidor quer a lista role ou não. */}
+      <div className="flex w-full justify-center" style={{ paddingRight: gutter }}>
         <button
           type="button"
           title="Mensagens diretas"
@@ -46,8 +64,8 @@ export function ServerRail({
       <div className="h-px w-8 bg-divider" />
 
       <div
+        ref={listRef}
         className="flex min-h-0 w-full flex-1 flex-col items-center gap-2.5 overflow-x-hidden overflow-y-auto"
-        style={{ scrollbarGutter: 'stable' }}
       >
         {servers.map((server) => (
           <ServerIcon
@@ -61,7 +79,7 @@ export function ServerRail({
 
       {/* Outside the scrolling list on purpose — always visible without
           having to scroll all the way down past every server. */}
-      <div className="flex w-full flex-none justify-center pr-2.5">
+      <div className="flex w-full flex-none justify-center" style={{ paddingRight: gutter }}>
         <button
           type="button"
           title="Adicionar servidor"
