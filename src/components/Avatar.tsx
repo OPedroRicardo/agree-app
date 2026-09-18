@@ -29,6 +29,7 @@ export function Avatar({
   avatarUrl,
   size = 36,
   className = "",
+  initialsFontSize,
 }: {
   seed: string;
   /** `''`, `null` and `undefined` all mean "no picture" — e.g. messages sent before `senderAvatarUrl` was populated. */
@@ -36,6 +37,8 @@ export function Avatar({
   /** Diameter in pixels. */
   size?: number;
   className?: string;
+  /** Overrides the default 11px initials — for large avatars such as voice call tiles. */
+  initialsFontSize?: number;
 }) {
   // Remembers *which* URL failed, not just that one did, so a new URL on the
   // same instance (a cache revalidation, a changed picture) gets its own try.
@@ -63,6 +66,7 @@ export function Avatar({
         width: size,
         height: size,
         background: hashColor(seed),
+        fontSize: initialsFontSize,
       }}
     >
       {initialsOf(seed)}

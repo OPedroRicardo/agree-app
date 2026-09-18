@@ -34,6 +34,7 @@ import { CreateChannelModal } from './CreateChannelModal';
 import { SettingsModal } from './SettingsModal';
 import { UserBar } from './UserBar';
 import { VoiceStatusBar } from './VoiceStatusBar';
+import { VoiceView } from './VoiceView';
 
 // Regex for the per-conversation broadcast event name
 const CONVERSATION_EVENT = /^conversation:(.+):messages$/;
@@ -614,6 +615,11 @@ function AppShellContent() {
           showMembers={showMembers}
           onToggleMembers={() => setShowMembers((v) => !v)}
           onSend={handleSendChannel}
+          voiceView={
+            activeChannel?.type === 'voice' ? (
+              <VoiceView channel={activeChannel} serverId={activeServerId} />
+            ) : undefined
+          }
         />
       ) : (
         <ChatArea

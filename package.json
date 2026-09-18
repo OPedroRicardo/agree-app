@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --port 3001 --strict-port",
     "lint": "eslint .",
+    "test": "vitest run",
     "tauri": "tauri"
   },
   "dependencies": {
@@ -35,6 +36,7 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "typescript-eslint": "^8",
-    "vite": "^6"
+    "vite": "^6",
+    "vitest": "^3.2.7"
   }
 }
