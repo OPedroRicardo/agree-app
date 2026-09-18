@@ -837,12 +837,36 @@ export class VoiceClient {
         if (this.sfu?.signalingState === 'have-local-offer') {
           await this.sfu.setLocalDescription({ type: 'rollback' }).catch(() => undefined);
         }
+        if (await this.sfuCannotNegotiate()) {
+          void this.recoverSfu();
+          return;
+        }
         this.emit('error', err instanceof Error ? err.message : 'Falha na negociação com o servidor de mídia.');
       }
     };
     const next = this.sfuQueue.then(run, run);
     this.sfuQueue = next;
     return next;
+  }
+
+  /**
+   * O PC do SFU ainda consegue negociar? Um SDP remoto que o Chrome recusou
+   * pela metade envenena o PC: a partir dali *toda* negociação estoura o mesmo
+   * erro, `createOffer` inclusive, então nem o close consegue desfazer o
+   * estrago. Não dá para inferir isso do `connectionState` (a mídia que já
+   * fluía continua, e ele fica em `connected`), então a checagem é direta —
+   * tentar uma offer. Num PC são é barato e não muda o `signalingState`.
+   */
+  private async sfuCannotNegotiate(): Promise<boolean> {
+    const pc = this.sfu;
+    if (!pc || pc.signalingState !== 'stable') return false;
+    try {
+      await pc.createOffer();
+      return false;
+    } catch (err) {
+      sfuLog('PC do SFU não negocia mais, refazendo a sessão', err instanceof Error ? err.message : err);
+      return true;
+    }
   }
 
   /**
@@ -891,7 +915,7 @@ export class VoiceClient {
 
   /**
    * Aplica o `sessionDescription` de uma resposta do SFU. Uma `answer` fecha
-   * uma negociação que nós começamos (publish, close com offer); uma `offer`
+   * uma negociação que nós começamos (só o publish, hoje); uma `offer`
    * com `requiresImmediateRenegotiation` é a Cloudflare começando uma (pull),
    * e precisa voltar como `voice:sfu:renegotiate`.
    */
@@ -977,15 +1001,14 @@ export class VoiceClient {
   }
 
   /**
-   * Desliga câmera/tela no servidor: `transceiver.stop()` + offer +
-   * `voice:sfu:close`. Só `track.stop()` não basta — a presença continuaria
-   * anunciando a track para todo mundo.
+   * Desliga câmera/tela no servidor. Só `track.stop()` não basta — a presença
+   * continuaria anunciando a track para todo mundo.
    */
   private async unpublish(pc: RTCPeerConnection, stale: [VoiceTrackSource, Publication][], guard: () => void) {
     const mids: string[] = [];
     for (const [source, { transceiver }] of stale) {
       if (transceiver.mid) mids.push(transceiver.mid);
-      transceiver.stop();
+      else retireTransceiver(transceiver);
       this.published.delete(source);
     }
     if (!mids.length) return;
@@ -994,31 +1017,32 @@ export class VoiceClient {
   }
 
   /**
-   * Fecha `mids` no servidor renegociando: para os transceivers desses mids,
-   * gera a offer e manda no `voice:sfu:close`, aplicando a answer. É o único
-   * close que existe, para track publicada e para pull — o servidor exige a
-   * offer, e um close forçado deixaria o transceiver morto no PC. `stop()` num
-   * transceiver já parado não faz nada, então quem já parou os seus (o
-   * `unpublish`) pode chamar igual.
+   * Fecha `mids` no servidor — track publicada e pull, o mesmo caminho para os
+   * dois. **Sem offer e sem renegociar**: o transceiver fica no lugar, morto
+   * (ver {@link retireTransceiver}), e o servidor manda `force: true` para a
+   * Cloudflare.
+   *
+   * É isso que evita a colisão de ids de header extension. Uma offer nossa com
+   * a m-section em porta 0 — o que `transceiver.stop()` gera — libera aquele
+   * slot, e a Cloudflare reaproveita o mid na próxima offer dela (um pull) com
+   * ids novos. O Chrome guarda o mapa de extensions por mid pela vida do PC e
+   * recusa a troca (`RTP extension ID reassignment not supported (collision on
+   * active MID n)`), e a partir daí *nenhuma* negociação naquele PC funciona —
+   * nem `createOffer`. Era o que quebrava reabrir uma live. Ninguém oferecer
+   * porta 0 é o que mantém o mid fora do alcance dela.
+   *
+   * O preço é uma m-section morta por track fechada, que não custa encoder nem
+   * banda. Se a Cloudflare reaproveitar um transceiver desses num pull futuro,
+   * o {@link syncPulls} pega a track do receiver.
    */
   private async closeMids(pc: RTCPeerConnection, mids: string[], guard: () => void) {
     sfuLog('closeMids', mids, '| antes:', describeTransceivers(pc));
     for (const transceiver of pc.getTransceivers()) {
-      if (transceiver.mid && mids.includes(transceiver.mid)) transceiver.stop();
+      if (transceiver.mid && mids.includes(transceiver.mid)) retireTransceiver(transceiver);
     }
 
-    const offer = await pc.createOffer();
-    // Logada antes de aplicar: se o `setLocalDescription` recusar, ela nunca chega ao `sfuEmit`.
-    sfuLog('offer local (close)', describeSdp(offer.sdp));
-    await pc.setLocalDescription(offer);
+    await this.sfuEmit('voice:sfu:close', { channelId: this.channelId, mids });
     guard();
-    const ack = await this.sfuEmit<SfuDescriptionAck>('voice:sfu:close', {
-      channelId: this.channelId,
-      mids,
-      sessionDescription: plain(pc.localDescription),
-    });
-    guard();
-    await this.applySfuDescription(pc, ack, guard);
     sfuLog('closeMids ok', mids, '| depois:', describeTransceivers(pc), '| conn:', pc.connectionState);
   }
 
@@ -1083,7 +1107,13 @@ export class VoiceClient {
       if (pc.signalingState === 'have-local-offer') {
         await pc.setLocalDescription({ type: 'rollback' }).catch(() => undefined);
       }
-      for (const { transceiver } of added) transceiver.stop();
+      // Um transceiver que nunca foi negociado não tem m-section para rejeitar,
+      // então `stop()` aqui não libera mid nenhum. Se o rollback deixou o mid,
+      // aposenta em vez de parar — ver {@link closeMids}.
+      for (const { transceiver } of added) {
+        if (transceiver.mid) retireTransceiver(transceiver);
+        else transceiver.stop();
+      }
       // Câmera/tela recusadas voltam a desligadas — senão a próxima sync tentaria de novo pra sempre.
       if (added.some(({ source }) => source === 'camera')) this.releaseCamera();
       if (added.some(({ source }) => source === 'screen')) this.releaseScreen();
@@ -1177,7 +1207,21 @@ export class VoiceClient {
             rid: request.rid,
           });
         }
-        await this.applySfuDescription(pc, ack, guard);
+        try {
+          await this.applySfuDescription(pc, ack, guard);
+        } catch (err) {
+          // Os mids foram registrados antes do `ontrack`, mas sem a
+          // renegociação eles não existem de verdade: esquece e agenda o close,
+          // senão o servidor segue achando que recebemos essas tracks e todo
+          // pull novo volta como "You are already receiving …".
+          if (!(err instanceof StaleSfuStep)) {
+            for (const t of ack.tracks) {
+              this.forgetPull(t.mid);
+              this.closingMids.add(t.mid);
+            }
+          }
+          throw err;
+        }
         guard();
         // O `ontrack` não dispara de novo num transceiver que a Cloudflare reaproveitou — pega do receiver.
         for (const transceiver of pc.getTransceivers()) {
@@ -1518,6 +1562,21 @@ function summarizeSfuPayload(payload: unknown): unknown {
 function plain(description: RTCSessionDescription | null): RTCSessionDescriptionInit {
   if (!description) throw new Error('Sem descrição local para enviar ao servidor de mídia.');
   return { type: description.type, sdp: description.sdp };
+}
+
+/**
+ * Aposenta um transceiver **sem** `stop()`: para de mandar na hora
+ * (`replaceTrack(null)`) e marca a m-section como `inactive`, que continua
+ * ocupando o slot. `stop()` colocaria porta 0 na próxima offer e liberaria o
+ * mid para a Cloudflare reaproveitar — ver `VoiceClient.closeMids`.
+ */
+function retireTransceiver(transceiver: RTCRtpTransceiver) {
+  void transceiver.sender.replaceTrack(null).catch(() => undefined);
+  try {
+    transceiver.direction = 'inactive';
+  } catch {
+    // Transceiver já parado (PC em teardown): não há o que aposentar.
+  }
 }
 
 function chunks<T>(items: T[], size: number): T[][] {
